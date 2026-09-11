@@ -538,10 +538,16 @@ class ControllerService : Service() {
         // Button debounce: only inject once the mechanical bits have been stable for DEBOUNCE_MS
         val injectableBits = state.buttons and INJECTABLE_MASK
         val buttonsConfirmedThisFrame: Boolean
+        // The state as it was BEFORE this frame's confirmation. SHIZUKU_INJECT needs it to
+        // diff old vs new: confirmedState is overwritten below, so passing confirmedState to
+        // GamepadMapper.buttons() after the fact compared `state` against itself and always
+        // produced an empty key list — i.e. the fallback injection path never sent a single
+        // button press, only axes.
+        val previousConfirmed = confirmedState!!
         if (injectableBits == pendingButtons) {
             buttonsConfirmedThisFrame =
                 (now - pendingSinceMs) >= DEBOUNCE_MS &&
-                injectableBits != (confirmedState!!.buttons and INJECTABLE_MASK)
+                injectableBits != (previousConfirmed.buttons and INJECTABLE_MASK)
             if (buttonsConfirmedThisFrame) confirmedState = state
         } else {
             pendingButtons = injectableBits
@@ -577,7 +583,7 @@ class ControllerService : Service() {
                 ))
                 // Buttons only on debounced change
                 if (buttonsConfirmedThisFrame) {
-                    GamepadMapper.buttons(state, confirmedState!!).forEach { (keyCode, down) ->
+                    GamepadMapper.buttons(state, previousConfirmed).forEach { (keyCode, down) ->
                         legacyInjector.injectKey(keyCode, down)
                     }
                 }
