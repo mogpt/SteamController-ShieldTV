@@ -86,12 +86,26 @@ class ControllerService : Service() {
         Buttons.L4 or Buttons.L5 or Buttons.R4 or Buttons.R5 or
         Buttons.DPAD_UP or Buttons.DPAD_DOWN or Buttons.DPAD_LEFT or Buttons.DPAD_RIGHT
 
-    // Debounce window. USB=333Hz so 5 frames = ~15ms. BT=~150Hz so 3 frames = ~20ms.
-    // Tuned to filter capacitive noise without adding perceptible button latency.
-    private val DEBOUNCE_FRAMES = 3
+    // Debounce window, in milliseconds rather than frames. A frame count means a different
+    // amount of real time per transport (USB ~333Hz, BLE ~60-100Hz), so the old fixed
+    // 3-frame rule was ~9ms over USB but could exceed 30ms over Bluetooth — perceptible.
+    // A time window gives identical, bounded latency on both links.
+    private val DEBOUNCE_MS = 12L
+
+    // Display-only flow throttle — see onHidFrame.
+    private val UI_FLOW_INTERVAL_MS = 33L
+    private var lastUiEmitMs = 0L
+
+    /** Upper bound on how long onDestroy will wait for the Shizuku user service teardown. */
+    private val UNBIND_TIMEOUT_MS = 2000L
     private var confirmedState: SteamControllerState? = null
     private var pendingButtons = 0
-    private var pendingFrames = 0
+    private var pendingSinceMs = 0L
+
+    // isMouseMode is read on every HID frame (up to 333/s). Reading it through Prefs each
+    // time meant a synchronized SharedPreferences lookup plus a GamepadProfile.values()
+    // array allocation per frame. Cached here and refreshed only when the profile changes.
+    @Volatile private var isMouseModeCached = false
 
     override fun onCreate() {
         super.onCreate()
@@ -100,7 +114,9 @@ class ControllerService : Service() {
         uinput = UInputGamepad(this, Prefs.getProfile(this))
         uinput.onRumble = { strong, weak -> forwardRumble(strong, weak) }
         createNotificationChannel()
-        _profileFlow.value = Prefs.getProfile(this).id
+        val startProfile = Prefs.getProfile(this)
+        isMouseModeCached = startProfile.isMouseMode
+        _profileFlow.value = startProfile.id
 
         // Refresh the foreground notification whenever the controller's battery level changes.
         // StateFlow only emits on actual value changes, so this triggers ~once per percent dropped.
@@ -180,6 +196,7 @@ class ControllerService : Service() {
                 try {
                     val gp = com.steamcontroller.android.uinput.GamepadProfile.fromId(bound.profileId)
                     uinput.switchProfile(gp)
+                    isMouseModeCached = gp.isMouseMode
                     _profileFlow.value = bound.profileId
                     refreshNotification()
                 } finally {
@@ -187,6 +204,8 @@ class ControllerService : Service() {
                 }
             }
         } else {
+            isMouseModeCached =
+                com.steamcontroller.android.uinput.GamepadProfile.fromId(bound.profileId).isMouseMode
             _profileFlow.value = bound.profileId
             refreshNotification()
         }
@@ -391,8 +410,17 @@ class ControllerService : Service() {
     }
 
     private fun onHidFrame(state: SteamControllerState, raw: ByteArray) {
-        _stateFlow.value = state
-        _rawReportFlow.value = raw
+        // The UI-facing flows are display-only. Writing them on every HID frame pushed up to
+        // 333 updates/s at MainActivity and DebugActivity, whose collectors run on the main
+        // thread — enough to visibly hitch the UI on low-RAM devices while adding nothing a
+        // human can see. Throttled to UI_FLOW_INTERVAL_MS (~30Hz); the injection path below
+        // is untouched and still runs at full rate.
+        val nowUi = android.os.SystemClock.uptimeMillis()
+        if (nowUi - lastUiEmitMs >= UI_FLOW_INTERVAL_MS) {
+            lastUiEmitMs = nowUi
+            _stateFlow.value = state
+            _rawReportFlow.value = raw
+        }
 
         // Dedicated battery/charge report (id 0x43) — works on both USB and BT,
         // percent is already 0-100. Sole battery source: bytes 44-45 of the 0x45 state
@@ -463,7 +491,7 @@ class ControllerService : Service() {
         }
         profileSwitchInFlight = true
 
-        val profiles = com.steamcontroller.android.uinput.GamepadProfile.values()
+        val profiles = com.steamcontroller.android.uinput.GamepadProfile.ALL
         val current = Prefs.getProfile(this)
         val next = profiles[(current.ordinal + 1) % profiles.size]
         Prefs.setProfile(this, next)
@@ -473,7 +501,8 @@ class ControllerService : Service() {
         // don't get injected via the now-defunct device.
         confirmedState = null
         pendingButtons = 0
-        pendingFrames = 0
+        pendingSinceMs = 0L
+        isMouseModeCached = next.isMouseMode
 
         // Run the actual device teardown/recreate off the service main thread —
         // it's a blocking binder + native ioctl pair that can take 100ms+.
@@ -496,41 +525,46 @@ class ControllerService : Service() {
     private fun handleState(state: SteamControllerState) {
         if (mode == InjectionMode.NONE) return
 
+        val now = android.os.SystemClock.uptimeMillis()
+
         // First frame = baseline
         if (confirmedState == null) {
             confirmedState = state
             pendingButtons = state.buttons and INJECTABLE_MASK
-            pendingFrames = 0
+            pendingSinceMs = now
             return
         }
 
-        // Button debounce: only inject after DEBOUNCE_FRAMES consecutive stable frames
+        // Button debounce: only inject once the mechanical bits have been stable for DEBOUNCE_MS
         val injectableBits = state.buttons and INJECTABLE_MASK
         val buttonsConfirmedThisFrame: Boolean
         if (injectableBits == pendingButtons) {
-            pendingFrames++
-            if (pendingFrames >= DEBOUNCE_FRAMES && injectableBits != (confirmedState!!.buttons and INJECTABLE_MASK)) {
-                confirmedState = state
-                buttonsConfirmedThisFrame = true
-            } else {
-                buttonsConfirmedThisFrame = false
-            }
+            buttonsConfirmedThisFrame =
+                (now - pendingSinceMs) >= DEBOUNCE_MS &&
+                injectableBits != (confirmedState!!.buttons and INJECTABLE_MASK)
+            if (buttonsConfirmedThisFrame) confirmedState = state
         } else {
             pendingButtons = injectableBits
-            pendingFrames = 1
+            pendingSinceMs = now
             buttonsConfirmedThisFrame = false
         }
 
         when (mode) {
             InjectionMode.UINPUT -> {
                 // Combine confirmed buttons with current raw axes — uinput frame is atomic.
-                // Desktop / mouse mode bypasses the gamepad debounce: the trackpad touch flag
-                // (TP_RT) is capacitive and excluded from the debounce, so using confirmed
-                // buttons would freeze the cursor whenever the touch flag couldn't propagate.
-                val frameToSend = if (Prefs.getProfile(this).isMouseMode) {
+                //
+                // Only the mechanical bits in INJECTABLE_MASK are debounced. Every other bit
+                // (capacitive: TP_LT/TP_RT touch, LS_TOUCH/RS_TOUCH, GRIP_*) must pass through
+                // LIVE. Sending confirmedState.buttons wholesale froze those flags at whatever
+                // they were the last time a mechanical button changed, which broke the sidecar
+                // trackpad mouse: TP_RT stuck at 0 meant the cursor never moved, and stuck at 1
+                // meant a phantom cursor drifting from stale pad coordinates.
+                val frameToSend = if (isMouseModeCached) {
                     state
                 } else {
-                    state.copy(buttons = confirmedState!!.buttons)
+                    val merged = (confirmedState!!.buttons and INJECTABLE_MASK) or
+                                 (state.buttons and INJECTABLE_MASK.inv())
+                    state.copy(buttons = merged)
                 }
                 uinput.pushFrame(frameToSend)
             }
@@ -553,11 +587,27 @@ class ControllerService : Service() {
     }
 
     override fun onDestroy() {
-        try { uinput.unbind() } catch (_: Throwable) {}
-        scope.cancel()
+        // Ordering matters here, and the original order caused two distinct problems.
+        //
+        // 1. uinput.unbind() issues blocking binder calls into the Shizuku user service
+        //    (restoring show_ime_with_hard_keyboard runs two `settings` shell commands, then
+        //    destroy()). onDestroy runs on the MAIN thread, so doing that inline could stall
+        //    the UI thread for hundreds of ms on every Stop — a visible freeze, and an ANR if
+        //    the user service was slow or wedged. It now runs on a worker joined with a
+        //    timeout: normally it completes, but it can never hang the main thread.
+        //
+        // 2. The USB read loop was still in bulkTransfer() when usbManager.disconnect() closed
+        //    the connection underneath it. Stop the reader first, then tear the transport down.
         reader?.stop()
+        scope.cancel()
+
+        val teardown = Thread {
+            try { uinput.unbind() } catch (_: Throwable) {}
+        }.apply { isDaemon = true; start() }
+
         usbManager.disconnect()
         try { btManager.disconnect() } catch (_: Throwable) {}
+        try { teardown.join(UNBIND_TIMEOUT_MS) } catch (_: InterruptedException) {}
         _modeFlow.value = InjectionMode.NONE
         // Reset state + battery so MainActivity's "is the controller actually here?"
         // observer flips back to disconnected on stop.
@@ -627,7 +677,7 @@ class ControllerService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         val nextLabel = if (mode == InjectionMode.UINPUT) {
-            val profiles = com.steamcontroller.android.uinput.GamepadProfile.values()
+            val profiles = com.steamcontroller.android.uinput.GamepadProfile.ALL
             val next = profiles[(profile.ordinal + 1) % profiles.size]
             "→ ${next.displayName}"
         } else {

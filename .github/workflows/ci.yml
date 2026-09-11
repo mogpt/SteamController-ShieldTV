@@ -2,9 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'optimize/**']
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -31,4 +32,11 @@ jobs:
           restore-keys: ${{ runner.os }}-gradle-
 
       - name: Build debug APK (unsigned)
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: steamcontroller-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

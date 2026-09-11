@@ -14,6 +14,9 @@ enum class GamepadProfile(
     MOUSE      (4, "Desktop (mouse + keyboard)", 0x046D, 0xC077, isMouseMode = true);
 
     companion object {
-        fun fromId(id: Int): GamepadProfile = values().firstOrNull { it.id == id } ?: XBOX_360
+        // values() allocates a fresh array on every call. Cached because fromId() and the
+        // profile-cycling paths are called from the controller service's frame handling.
+        val ALL: Array<GamepadProfile> = values()
+        fun fromId(id: Int): GamepadProfile = ALL.firstOrNull { it.id == id } ?: XBOX_360
     }
 }

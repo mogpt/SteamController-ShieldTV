@@ -12,7 +12,8 @@ enum class Transport(val id: Int, val displayName: String) {
     USB(0, "USB / Puck"),
     BLUETOOTH(1, "Bluetooth");
     companion object {
-        fun fromId(id: Int) = values().firstOrNull { it.id == id } ?: USB
+        val ALL: Array<Transport> = values()
+        fun fromId(id: Int) = ALL.firstOrNull { it.id == id } ?: USB
     }
 }
 
@@ -147,10 +148,15 @@ object Prefs {
     // ─── Button mapping ──────────────────────────────────────────────────────
     private fun mapKey(source: SteamButton) = "map_${source.name}"
 
+    // values() allocates a new array per call; getAllMappings() alone did that once per
+    // SteamButton, several times a second while the service is running.
+    private val XBOX_TARGETS: Array<XboxTarget> = XboxTarget.values()
+    private val STEAM_BUTTONS: Array<SteamButton> = SteamButton.values()
+
     fun getMapping(context: Context, source: SteamButton): XboxTarget {
         val default = DEFAULT_MAPPING[source] ?: XboxTarget.NONE
         val ordinal = prefs(context).getInt(mapKey(source), default.ordinal)
-        return XboxTarget.values().getOrNull(ordinal) ?: default
+        return XBOX_TARGETS.getOrNull(ordinal) ?: default
     }
 
     fun setMapping(context: Context, source: SteamButton, target: XboxTarget) {
@@ -158,7 +164,7 @@ object Prefs {
     }
 
     fun getAllMappings(context: Context): Map<SteamButton, XboxTarget> =
-        SteamButton.values().associateWith { getMapping(context, it) }
+        STEAM_BUTTONS.associateWith { getMapping(context, it) }
 
     fun resetMappings(context: Context) {
         val edit = prefs(context).edit()

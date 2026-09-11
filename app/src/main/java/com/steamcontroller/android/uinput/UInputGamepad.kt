@@ -53,6 +53,46 @@ class UInputGamepad(private val context: Context, initialProfile: GamepadProfile
     @Volatile private var cachedLeftCal: StickCalibration = StickCalibration.DEFAULT
     @Volatile private var cachedRightCal: StickCalibration = StickCalibration.DEFAULT
     @Volatile private var cachedMapping: Map<SteamButton, XboxTarget> = emptyMap()
+
+    // The mapping is walked on EVERY HID frame (up to 333/s). Iterating the Map directly
+    // allocated an iterator plus Map.Entry access per frame and visited ~20 entries, most of
+    // them XboxTarget.NONE. It's compiled into flat parallel arrays whenever the prefs cache
+    // refreshes (~4Hz) so the per-frame path is an allocation-free indexed loop over only the
+    // entries that actually do something.
+    @Volatile private var mapSrcMask: IntArray = IntArray(0)
+    @Volatile private var mapTgtMask: IntArray = IntArray(0)
+    @Volatile private var mapTgtKeyBit: IntArray = IntArray(0)
+    @Volatile private var mapTgtTrigger: IntArray = IntArray(0)
+    // Special actions (XboxTarget.mask < 0 with no keyBit/trigger) — edge-triggered.
+    @Volatile private var specialSrcMask: IntArray = IntArray(0)
+    @Volatile private var specialTargets: Array<XboxTarget> = emptyArray()
+
+    private fun compileMapping(mapping: Map<SteamButton, XboxTarget>) {
+        val src = ArrayList<Int>(mapping.size)
+        val tMask = ArrayList<Int>(mapping.size)
+        val tKey = ArrayList<Int>(mapping.size)
+        val tTrig = ArrayList<Int>(mapping.size)
+        val spSrc = ArrayList<Int>()
+        val spTgt = ArrayList<XboxTarget>()
+        for ((source, target) in mapping) {
+            val isSpecial = target.mask < 0 && target.keyBit < 0 && target.triggerSide == 0
+            if (isSpecial) {
+                spSrc.add(source.mask); spTgt.add(target); continue
+            }
+            // Skip NONE and anything else that can't produce output.
+            if (target.mask <= 0 && target.keyBit < 0 && target.triggerSide == 0) continue
+            src.add(source.mask)
+            tMask.add(target.mask)
+            tKey.add(target.keyBit)
+            tTrig.add(target.triggerSide)
+        }
+        mapSrcMask = src.toIntArray()
+        mapTgtMask = tMask.toIntArray()
+        mapTgtKeyBit = tKey.toIntArray()
+        mapTgtTrigger = tTrig.toIntArray()
+        specialSrcMask = spSrc.toIntArray()
+        specialTargets = spTgt.toTypedArray()
+    }
     @Volatile private var lastCalRefresh: Long = 0
     private val calRefreshIntervalMs = 250L  // ~4 Hz refresh, plenty for live tuning
 
@@ -230,6 +270,7 @@ class UInputGamepad(private val context: Context, initialProfile: GamepadProfile
             cachedLeftCal  = Prefs.getLeftCalibration(context)
             cachedRightCal = Prefs.getRightCalibration(context)
             cachedMapping  = Prefs.getAllMappings(context)
+            compileMapping(cachedMapping)
             cachedMouseSensitivity = Prefs.getMouseSensitivity(context)
             cachedTrackpadAsMouse  = Prefs.getTrackpadAsMouseInGamepad(context)
             lastCalRefresh = now
@@ -252,24 +293,22 @@ class UInputGamepad(private val context: Context, initialProfile: GamepadProfile
         var sidecarMappedKeys = 0
         var ltOverride = 0
         var rtOverride = 0
-        for ((source, target) in cachedMapping) {
-            val pressed = state.isButtonPressed(source.mask)
+        val buttons = state.buttons
+        val srcs = mapSrcMask
+        for (i in srcs.indices) {
+            if ((buttons and srcs[i]) == 0) continue
+            val tm = mapTgtMask[i]
+            val tk = mapTgtKeyBit[i]
+            val tt = mapTgtTrigger[i]
             when {
-                target.mask > 0 && pressed -> {
-                    xboxButtons = xboxButtons or target.mask
-                }
-                target.keyBit >= 0 && pressed -> {
-                    sidecarMappedKeys = sidecarMappedKeys or (1 shl target.keyBit)
-                }
-                target.triggerSide == 1 && pressed -> { ltOverride = 255 }
-                target.triggerSide == 2 && pressed -> { rtOverride = 255 }
-                target.mask < 0 && target.keyBit < 0 && target.triggerSide == 0 -> {
-                    val wasPressed = (lastFrameButtons and source.mask) != 0
-                    if (pressed && !wasPressed) handleSpecialAction(target)
-                }
+                tm > 0  -> xboxButtons = xboxButtons or tm
+                tk >= 0 -> sidecarMappedKeys = sidecarMappedKeys or (1 shl tk)
+                tt == 1 -> ltOverride = 255
+                tt == 2 -> rtOverride = 255
             }
         }
-        lastFrameButtons = state.buttons
+        fireSpecialActions(buttons)
+        lastFrameButtons = buttons
 
         // SC2026 sticks are already in Int16 range — direct passthrough
         // SC2026 triggers are 0-32767 → scale down to Xbox 0-255.
@@ -344,6 +383,17 @@ class UInputGamepad(private val context: Context, initialProfile: GamepadProfile
             svc.sendMouseFrame(relX, relY, scrollTicks, keys)
         } catch (t: Throwable) {
             Log.e(TAG, "sendMouseFrame (sidecar) IPC failed: ${t.message}")
+        }
+    }
+
+    /** Edge-triggered special actions (screenshot etc.): fire on 0 → 1 only, never while held. */
+    private fun fireSpecialActions(buttons: Int) {
+        val sp = specialSrcMask
+        for (i in sp.indices) {
+            val m = sp[i]
+            if ((buttons and m) != 0 && (lastFrameButtons and m) == 0) {
+                handleSpecialAction(specialTargets[i])
+            }
         }
     }
 
@@ -424,13 +474,7 @@ class UInputGamepad(private val context: Context, initialProfile: GamepadProfile
 
         // Special actions (screenshot) still honoured via the gamepad mapping table —
         // keeps QA → screenshot working even in mouse mode.
-        for ((source, target) in cachedMapping) {
-            if (target.mask < 0) {
-                val pressed = state.isButtonPressed(source.mask)
-                val wasPressed = (lastFrameButtons and source.mask) != 0
-                if (pressed && !wasPressed) handleSpecialAction(target)
-            }
-        }
+        fireSpecialActions(state.buttons)
         lastFrameButtons = state.buttons
 
         try {
