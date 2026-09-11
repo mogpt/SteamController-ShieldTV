@@ -22,7 +22,9 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.text.HtmlCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.steamcontroller.android.bt.BluetoothHidManager
 import com.steamcontroller.android.databinding.ActivityMainBinding
@@ -216,9 +218,16 @@ class MainActivity : AppCompatActivity() {
         // Observe real connection state — `stateFlow` only carries a non-null value
         // once at least one HID frame has been parsed from the controller. That's the
         // signal we trust for "controller actually plugged in / paired and streaming".
+        // repeatOnLifecycle, unlike a bare lifecycleScope.launch, suspends collection while
+        // the activity is stopped and resumes it on return. stateFlow is the high-rate flow
+        // (it tracks live HID frames), and a plain launch keeps delivering it to the main
+        // thread the whole time the app sits in the background behind a game. StateFlow
+        // replays its current value on re-subscribe, so the status stays correct.
         lifecycleScope.launch {
-            ControllerService.stateFlow.collect { state ->
-                updateStatus(connected = state != null)
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                ControllerService.stateFlow.collect { state ->
+                    updateStatus(connected = state != null)
+                }
             }
         }
 

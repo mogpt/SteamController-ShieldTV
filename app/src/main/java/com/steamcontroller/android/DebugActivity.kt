@@ -4,7 +4,9 @@ import android.os.Bundle
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.steamcontroller.android.databinding.ActivityDebugBinding
 import com.steamcontroller.android.parser.Buttons
 import com.steamcontroller.android.parser.SteamControllerState
@@ -33,17 +35,24 @@ class DebugActivity : AppCompatActivity() {
             } else false
         }
 
+        // Suspend collection while this screen isn't visible. The debug view renders every
+        // HID frame as hex; left collecting in the background it kept formatting strings on
+        // the main thread for a screen nobody was looking at.
         lifecycleScope.launch {
-            ControllerService.stateFlow.filterNotNull().collect { state ->
-                updateButtons(state)
-                updateAxes(state)
-                updateHz()
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                ControllerService.stateFlow.filterNotNull().collect { state ->
+                    updateButtons(state)
+                    updateAxes(state)
+                    updateHz()
+                }
             }
         }
 
         lifecycleScope.launch {
-            ControllerService.rawReportFlow.filterNotNull().collect { raw ->
-                binding.tvRawHex.text = formatHex(raw)
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                ControllerService.rawReportFlow.filterNotNull().collect { raw ->
+                    binding.tvRawHex.text = formatHex(raw)
+                }
             }
         }
     }
