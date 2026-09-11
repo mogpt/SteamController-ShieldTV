@@ -10,7 +10,81 @@ import android.util.Log
 // constructor first; either is acceptable.
 class UInputService : IUInputService.Stub {
 
-    companion object { private const val TAG = "UInputService" }
+    companion object {
+        private const val TAG = "UInputService"
+        /** Own process name, as set by UserServiceArgs.processNameSuffix("uinput"). */
+        private const val PROCESS_NAME = "com.steamcontroller.android:uinput"
+        /**
+         * If the client stops calling in for this long, assume it died and tear down.
+         * ControllerService polls force feedback at 50Hz for as long as it is bound, so
+         * silence is an unambiguous signal that nobody is driving this device any more.
+         */
+        private const val CLIENT_TIMEOUT_MS = 15_000L
+    }
+
+    @Volatile private var lastClientCallMs = android.os.SystemClock.uptimeMillis()
+    @Volatile private var watchdogStarted = false
+
+    private fun touch() { lastClientCallMs = android.os.SystemClock.uptimeMillis() }
+
+    /**
+     * Kill any other instance of this user service still holding a /dev/uinput handle.
+     *
+     * Each live instance registers a virtual gamepad, mouse and keyboard with Android.
+     * Orphans therefore show up to every app as extra, permanently dead controllers, and
+     * a game claiming "player 1" generally takes the lowest input device id — i.e. the
+     * oldest corpse rather than the live device. Symptom: the controller does nothing in
+     * a game that enumerates pads on launch, while the app insists it is connected.
+     *
+     * Orphans arise two ways: the app process being killed (so ControllerService.onDestroy,
+     * and therefore unbind(), never runs), and shizuku_server being restarted (which
+     * reparents its previously-spawned user services to init and loses track of them).
+     * Neither is preventable from the app side, so we clean up on the way in instead.
+     */
+    private fun reapStaleInstances() {
+        val self = android.os.Process.myPid()
+        var killed = 0
+        try {
+            java.io.File("/proc").listFiles()?.forEach { entry ->
+                val pid = entry.name.toIntOrNull() ?: return@forEach
+                if (pid == self) return@forEach
+                val name = try {
+                    // /proc/<pid>/cmdline is NUL-delimited; take the first field. Char(0) avoids
+                    // embedding an escape sequence in this source file.
+                    java.io.File(entry, "cmdline").readText().substringBefore(Char(0)).trim()
+                } catch (_: Throwable) { return@forEach }
+                if (name == PROCESS_NAME) {
+                    try {
+                        android.os.Process.killProcess(pid)
+                        killed++
+                        Log.i(TAG, "Reaped stale uinput service pid=$pid")
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "Could not kill stale pid=$pid: ${t.message}")
+                    }
+                }
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "reapStaleInstances failed: ${t.message}")
+        }
+        if (killed > 0) Log.i(TAG, "Reaped $killed stale uinput service(s)")
+    }
+
+    /** Self-destruct if the client stops calling — see CLIENT_TIMEOUT_MS. */
+    private fun startWatchdog() {
+        if (watchdogStarted) return
+        watchdogStarted = true
+        Thread({
+            while (true) {
+                try { Thread.sleep(5_000) } catch (_: InterruptedException) { return@Thread }
+                val idle = android.os.SystemClock.uptimeMillis() - lastClientCallMs
+                if (idle > CLIENT_TIMEOUT_MS) {
+                    Log.w(TAG, "No client activity for ${idle}ms — destroying device and exiting")
+                    destroy()
+                    return@Thread
+                }
+            }
+        }, "uinput-watchdog").apply { isDaemon = true; start() }
+    }
 
     @Suppress("unused")
     constructor() : super() {
@@ -32,6 +106,9 @@ class UInputService : IUInputService.Stub {
     }
 
     override fun createGamepad(profileId: Int): Boolean {
+        reapStaleInstances()
+        touch()
+        startWatchdog()
         return try {
             UInputNative.createDevice(profileId)
         } catch (t: Throwable) {
@@ -47,6 +124,7 @@ class UInputService : IUInputService.Stub {
         leftTrigger: Int, rightTrigger: Int,
         dpadX: Int, dpadY: Int
     ) {
+        touch()
         try {
             UInputNative.sendFrame(
                 buttons,
@@ -61,6 +139,7 @@ class UInputService : IUInputService.Stub {
     }
 
     override fun sendMouseFrame(relX: Int, relY: Int, scrollY: Int, keys: Int) {
+        touch()
         try {
             UInputNative.sendMouseFrame(relX, relY, scrollY, keys)
         } catch (t: Throwable) {
@@ -69,6 +148,7 @@ class UInputService : IUInputService.Stub {
     }
 
     override fun pollForceFeedback(): IntArray? {
+        touch()
         return try {
             UInputNative.pollFFEvent()
         } catch (t: Throwable) {
