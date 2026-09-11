@@ -50,6 +50,61 @@ class BluetoothHidManager(private val context: Context) {
     private val pendingSubs = mutableListOf<BluetoothGattCharacteristic>()
     private var subsIndex = 0
 
+    // The subscription chain advances only when onDescriptorWrite fires. Android's GATT
+    // stack permits one outstanding operation at a time and silently drops a write issued
+    // while another is in flight — writeDescriptor() still returns true, but no callback
+    // ever arrives. Observed in the wild: a late second onMtuChanged landed exactly as the
+    // first CCCD write went out, the callback was lost, and the chain stalled at index 0.
+    // The controller then stays subscribed only to the first notify characteristic, which
+    // carries 5-byte packets rather than the real state reports — the app reports the
+    // controller as ready while no input ever arrives.
+    private val subsHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var subsTimeout: Runnable? = null
+    private var subsRetries = 0
+    private val SUBSCRIBE_TIMEOUT_MS = 2000L
+    // One retry only. Evidence from a real SC2026 on Android 11: the first CCCD write is
+    // accepted and never completes, which wedges Android's single-outstanding-operation
+    // GATT queue, so every later write returns false permanently. Retrying cannot clear a
+    // wedged queue, and more attempts only add startup latency. Notifications still arrive
+    // because setCharacteristicNotification() enables them locally and the CCCD is already
+    // enabled on the controller from the pairing session.
+    private val MAX_SUBSCRIBE_RETRIES = 1
+    /** Backoff before re-issuing a descriptor write the stack rejected as busy. */
+    private val SUBSCRIBE_BUSY_RETRY_MS = 150L
+
+    /** Run subscribeNext after [delayMs], reusing the timeout slot so it is cancellable. */
+    private fun scheduleSubs(g: BluetoothGatt, delayMs: Long) {
+        cancelSubsTimeout()
+        val r = Runnable { if (state == State.SUBSCRIBING) subscribeNext(g) }
+        subsTimeout = r
+        subsHandler.postDelayed(r, delayMs)
+    }
+
+    private fun cancelSubsTimeout() {
+        subsTimeout?.let { subsHandler.removeCallbacks(it) }
+        subsTimeout = null
+    }
+
+    /** Re-issue or skip a subscription whose descriptor-write callback never arrived. */
+    private fun armSubsTimeout(g: BluetoothGatt) {
+        cancelSubsTimeout()
+        val r = Runnable {
+            if (state != State.SUBSCRIBING) return@Runnable
+            val stalled = subsIndex - 1
+            if (subsRetries < MAX_SUBSCRIBE_RETRIES) {
+                subsRetries++
+                Log.w(TAG, "Subscription idx=$stalled timed out, retrying (attempt $subsRetries)")
+                subsIndex = stalled          // rewind so the same characteristic is re-issued
+            } else {
+                Log.w(TAG, "Subscription idx=$stalled timed out after retry, skipping it")
+                subsRetries = 0
+            }
+            subscribeNext(g)
+        }
+        subsTimeout = r
+        subsHandler.postDelayed(r, SUBSCRIBE_TIMEOUT_MS)
+    }
+
     @Volatile private var state: State = State.IDLE
     private val heartbeatBusy = AtomicBoolean(false)
 
@@ -94,6 +149,7 @@ class BluetoothHidManager(private val context: Context) {
             featureWriteChar = null
             batteryChar = null
             pendingBatteryRead = false
+            cancelSubsTimeout()
             pendingSubs.clear()
             subsIndex = 0
             state = State.IDLE
@@ -243,6 +299,7 @@ class BluetoothHidManager(private val context: Context) {
                     try { g.close() } catch (_: Throwable) {}
                     gatt = null
                     featureWriteChar = null
+                    cancelSubsTimeout()
                     pendingSubs.clear()
                     subsIndex = 0
                     state = State.IDLE
@@ -314,6 +371,8 @@ class BluetoothHidManager(private val context: Context) {
             status: Int
         ) {
             Log.v(TAG, "onDescriptorWrite ${descriptor.uuid} status=$status (state=$state, idx=$subsIndex/${pendingSubs.size})")
+            cancelSubsTimeout()
+            subsRetries = 0
             if (state == State.SUBSCRIBING) subscribeNext(g)
         }
 
@@ -393,6 +452,7 @@ class BluetoothHidManager(private val context: Context) {
     }
 
     private fun subscribeNext(g: BluetoothGatt) {
+        cancelSubsTimeout()
         if (subsIndex >= pendingSubs.size) {
             // All subscriptions done — send disable lizard mode
             Log.i(TAG, "All ${pendingSubs.size} subscriptions complete, sending disable lizard")
@@ -426,8 +486,23 @@ class BluetoothHidManager(private val context: Context) {
         val wOk = g.writeDescriptor(cccd)
         Log.v(TAG, "Subscribe ${ch.uuid} idx=${subsIndex-1} setNotify=$nOk writeDesc=$wOk")
         if (!wOk) {
-            // Move on; we'll lose this one but try the rest
-            subscribeNext(g)
+            // Rejection almost always means "another GATT operation is still in flight",
+            // not "impossible". Cascading straight into the next characteristic — as this
+            // did originally — then fails every remaining write for the same reason and
+            // leaves the device subscribed to nothing, while the chain still reports
+            // itself complete. Back off briefly and re-issue the SAME characteristic.
+            if (subsRetries < MAX_SUBSCRIBE_RETRIES) {
+                subsRetries++
+                subsIndex--                       // rewind to retry this characteristic
+                scheduleSubs(g, SUBSCRIBE_BUSY_RETRY_MS)
+            } else {
+                Log.w(TAG, "Giving up on ${ch.uuid} after $subsRetries busy retries")
+                subsRetries = 0
+                scheduleSubs(g, SUBSCRIBE_BUSY_RETRY_MS)
+            }
+        } else {
+            // Accepted, but may still be silently dropped — see subsTimeout.
+            armSubsTimeout(g)
         }
     }
 
