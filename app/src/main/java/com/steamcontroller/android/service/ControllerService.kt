@@ -372,20 +372,55 @@ class ControllerService : Service() {
             Log.e(TAG, "Bluetooth disabled or unavailable")
             return false
         }
-        val address = Prefs.getBluetoothAddress(this)
-        if (address == null) {
+        val savedName = Prefs.getBluetoothName(this)
+        val savedAddress = Prefs.getBluetoothAddress(this)
+        if (savedName == null && savedAddress == null) {
             Log.e(TAG, "No paired Bluetooth Steam Controller selected")
             return false
         }
-        val mgr = getSystemService(BluetoothManager::class.java)
-        val device = try {
-            mgr?.adapter?.getRemoteDevice(address)
-        } catch (t: Throwable) {
-            Log.e(TAG, "Invalid BT address $address: ${t.message}")
+        val adapter = getSystemService(BluetoothManager::class.java)?.adapter
+        if (adapter == null) {
+            Log.e(TAG, "No Bluetooth adapter")
             return false
         }
+
+        // Resolve by NAME against the current bond list, not by stored address.
+        //
+        // The SC2026 advertises over BLE using a random resolvable address, which rotates
+        // (seen changing three times across one session, and again on every re-pair). A
+        // stored address therefore goes stale and getRemoteDevice() hands back a device
+        // that will never connect — the app reports itself configured while silently
+        // failing, and the only cure was re-picking the controller in the dropdown by hand.
+        // The friendly name embeds the controller's serial number, so it is stable and
+        // unique unless the user renames the device.
+        var device = if (savedName != null) {
+            try {
+                adapter.bondedDevices?.firstOrNull { bonded ->
+                    (try { bonded.name } catch (_: SecurityException) { null }) == savedName
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "Could not read bonded devices: ${t.message}"); null
+            }
+        } else null
+
+        if (device != null) {
+            if (device.address != savedAddress) {
+                Log.i(TAG, "BLE address for '$savedName' rotated: $savedAddress -> ${device.address}")
+                Prefs.setBluetoothAddress(this, device.address)
+            }
+        } else if (savedAddress != null) {
+            // Name lookup failed (renamed, unbonded, or name unreadable) — fall back.
+            Log.w(TAG, "No bonded device named '$savedName'; falling back to address $savedAddress")
+            device = try {
+                adapter.getRemoteDevice(savedAddress)
+            } catch (t: Throwable) {
+                Log.e(TAG, "Invalid BT address $savedAddress: ${t.message}")
+                null
+            }
+        }
+
         if (device == null) {
-            Log.e(TAG, "No remote device for $address")
+            Log.e(TAG, "Could not resolve a Bluetooth device (name='$savedName', address=$savedAddress)")
             return false
         }
 

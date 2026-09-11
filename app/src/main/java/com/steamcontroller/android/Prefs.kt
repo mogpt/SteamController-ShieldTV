@@ -23,6 +23,7 @@ object Prefs {
     private const val KEY_LAST_GAMEPAD_PROFILE_ID = "last_gamepad_profile_id"
     private const val KEY_TRANSPORT  = "transport"
     private const val KEY_BT_ADDRESS = "bt_device_address"
+    private const val KEY_BT_NAME    = "bt_device_name"
 
     private const val KEY_L_CENTER_X = "calib_l_cx"
     private const val KEY_L_CENTER_Y = "calib_l_cy"
@@ -82,6 +83,29 @@ object Prefs {
 
     fun setBluetoothAddress(context: Context, address: String?) {
         prefs(context).edit().putString(KEY_BT_ADDRESS, address).apply()
+    }
+
+    /**
+     * Friendly name of the chosen controller. This, not the address, is the stable
+     * identity: the SC2026 advertises over BLE with a random resolvable address that
+     * rotates (observed changing three times in one session), so a stored address goes
+     * stale and the app silently fails to connect until the user re-picks the device.
+     * The name carries the controller's serial number, so it is unique in practice.
+     * The address is still kept as a fallback for devices whose name can't be read.
+     */
+    fun getBluetoothName(context: Context): String? =
+        prefs(context).getString(KEY_BT_NAME, null)
+
+    fun setBluetoothName(context: Context, name: String?) {
+        prefs(context).edit().putString(KEY_BT_NAME, name).apply()
+    }
+
+    /** Record both identities for a picked device. */
+    fun setBluetoothDevice(context: Context, name: String?, address: String?) {
+        prefs(context).edit()
+            .putString(KEY_BT_NAME, name)
+            .putString(KEY_BT_ADDRESS, address)
+            .apply()
     }
 
     fun getLeftCalibration(context: Context): StickCalibration = prefs(context).run {

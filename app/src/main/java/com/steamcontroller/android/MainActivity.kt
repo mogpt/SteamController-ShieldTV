@@ -334,15 +334,21 @@ class MainActivity : AppCompatActivity() {
         binding.dropdownBtDevice.setAdapter(nonFilteringAdapter(labels))
         binding.dropdownBtDevice.threshold = 0
 
+        // Match the saved selection by NAME first — the BLE address rotates, so an address
+        // match alone silently resets the picker to the first device after a re-pair.
+        val savedName = Prefs.getBluetoothName(this)
         val savedAddress = Prefs.getBluetoothAddress(this)
-        val currentIdx = pairedBtDevices.indexOfFirst { it.address == savedAddress }.coerceAtLeast(0)
+        val currentIdx = pairedBtDevices
+            .indexOfFirst { labels.getOrNull(pairedBtDevices.indexOf(it)) == savedName }
+            .takeIf { it >= 0 }
+            ?: pairedBtDevices.indexOfFirst { it.address == savedAddress }.coerceAtLeast(0)
         binding.dropdownBtDevice.setText(labels[currentIdx], false)
-        Prefs.setBluetoothAddress(this, pairedBtDevices[currentIdx].address)
+        Prefs.setBluetoothDevice(this, labels[currentIdx], pairedBtDevices[currentIdx].address)
 
         binding.dropdownBtDevice.setOnItemClickListener { _, _, position, _ ->
             val picked = pairedBtDevices[position]
-            Prefs.setBluetoothAddress(this, picked.address)
-            log("BT device: ${picked.address}")
+            Prefs.setBluetoothDevice(this, labels[position], picked.address)
+            log("BT device: ${labels[position]} (${picked.address})")
         }
     }
 
