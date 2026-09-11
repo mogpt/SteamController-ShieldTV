@@ -1,14 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="chip_inactive">#8F98A0</color>
+    <!-- ── NVIDIA SHIELD TV palette ──────────────────────────────────────────── -->
+    <color name="nv_green">#76B900</color>          <!-- NVIDIA brand green -->
+    <color name="nv_green_bright">#8FD628</color>   <!-- hover / focus highlight -->
+    <color name="nv_green_dim">#171C10</color>      <!-- panel fill: neutral dark, barely green-tinted -->
+    <color name="nv_green_pale">#C2D9A0</color>     <!-- text/art on the panel fill -->
+
+    <color name="shield_bg">#0B0C0E</color>              <!-- near-black window ground -->
+    <color name="shield_surface">#16181C</color>         <!-- cards / sheets -->
+    <color name="shield_surface_variant">#1F2328</color> <!-- raised rows, inactive chips -->
+    <color name="shield_on_surface">#E6E8EA</color>
+    <color name="shield_on_surface_variant">#9AA0A6</color>
+    <color name="shield_outline">#2E3338</color>
+
+    <color name="chip_inactive">#7A8289</color>
 
     <!-- Status pill — connected/active state (green). -->
-    <color name="status_connected_container">#1F3A2A</color>
-    <color name="status_connected_on_container">#7CD49B</color>
+    <color name="status_connected_container">#23330A</color>
+    <color name="status_connected_on_container">#A7E04A</color>
 
     <!-- Status pill — neutral / idle state matches colorTertiaryContainer of the dark theme. -->
-    <color name="status_idle_container">#3A2A2D</color>
-    <color name="status_idle_on_container">#E5BAB4</color>
+    <color name="status_idle_container">#24272C</color>
+    <color name="status_idle_on_container">#9AA0A6</color>
 
     <!-- Classic Xbox 360 face-button colours, used to tint the target chip in MappingActivity rows. -->
     <color name="btn_xbox_a">#5CC04C</color>

@@ -40,7 +40,7 @@
             android:backgroundTint="@color/btn_neutral"
             android:fontFamily="monospace"
             android:gravity="center"
-            android:textColor="#0E1A22"
+            android:textColor="#0B0C0E"
             android:textSize="13sp"
             android:textStyle="bold"
             tools:text="A" />
@@ -77,7 +77,7 @@
             android:backgroundTint="@color/btn_xbox_a"
             android:fontFamily="monospace"
             android:gravity="center"
-            android:textColor="#0E1A22"
+            android:textColor="#0B0C0E"
             android:textSize="13sp"
             android:textStyle="bold"
             tools:text="A" />

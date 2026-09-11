@@ -1,18 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!--
+      NVIDIA SHIELD TV palette.
+
+      The Shield's own launcher is near-black with a single saturated green accent and
+      cool neutral greys. Matching it means the app reads as part of the system rather
+      than a phone app running on a TV, and the very dark ground suits a living-room
+      display. Accent is NVIDIA's brand green (#76B900).
+    -->
     <style name="Theme.SteamController" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">#66C0F4</item>
-        <item name="colorOnPrimary">#000000</item>
-        <item name="colorPrimaryContainer">#2A475E</item>
-        <item name="colorOnPrimaryContainer">#FFFFFF</item>
-        <item name="colorSecondary">#66C0F4</item>
-        <item name="colorOnSecondary">#000000</item>
-        <item name="colorSurface">#1B2838</item>
-        <item name="colorOnSurface">#FFFFFF</item>
-        <item name="colorSurfaceVariant">#2A475E</item>
-        <item name="colorOnSurfaceVariant">#C6D4DF</item>
-        <item name="android:windowBackground">#1B2838</item>
-        <item name="android:statusBarColor">#1B2838</item>
-        <item name="android:navigationBarColor">#1B2838</item>
+        <item name="colorPrimary">@color/nv_green</item>
+        <item name="colorOnPrimary">@color/shield_bg</item>
+        <item name="colorPrimaryContainer">@color/nv_green_dim</item>
+        <item name="colorOnPrimaryContainer">@color/nv_green_pale</item>
+        <item name="colorSecondary">@color/nv_green_bright</item>
+        <item name="colorOnSecondary">@color/shield_bg</item>
+        <item name="colorSecondaryContainer">@color/shield_surface_variant</item>
+        <item name="colorOnSecondaryContainer">@color/shield_on_surface</item>
+        <item name="colorSurface">@color/shield_surface</item>
+        <item name="colorOnSurface">@color/shield_on_surface</item>
+        <item name="colorSurfaceVariant">@color/shield_surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/shield_on_surface_variant</item>
+        <item name="colorOutline">@color/shield_outline</item>
+        <item name="android:windowBackground">@color/shield_bg</item>
+        <item name="android:statusBarColor">@color/shield_bg</item>
+        <item name="android:navigationBarColor">@color/shield_bg</item>
     </style>
 </resources>

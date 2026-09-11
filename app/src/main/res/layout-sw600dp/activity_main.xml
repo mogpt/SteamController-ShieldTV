@@ -295,6 +295,8 @@
 
                                 <com.google.android.material.radiobutton.MaterialRadioButton
                                     android:id="@+id/rbXbox360"
+                                    android:textColor="@android:color/white"
+                                    android:minHeight="34dp"
                                     android:layout_width="0dp"
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
@@ -303,6 +305,8 @@
 
                                 <com.google.android.material.radiobutton.MaterialRadioButton
                                     android:id="@+id/rbXboxOne"
+                                    android:textColor="@android:color/white"
+                                    android:minHeight="34dp"
                                     android:layout_width="0dp"
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
@@ -318,6 +322,8 @@
 
                                 <com.google.android.material.radiobutton.MaterialRadioButton
                                     android:id="@+id/rbDualShock4"
+                                    android:textColor="@android:color/white"
+                                    android:minHeight="34dp"
                                     android:layout_width="0dp"
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
@@ -326,6 +332,8 @@
 
                                 <com.google.android.material.radiobutton.MaterialRadioButton
                                     android:id="@+id/rbDualSense"
+                                    android:textColor="@android:color/white"
+                                    android:minHeight="34dp"
                                     android:layout_width="0dp"
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"

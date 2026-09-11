@@ -17,8 +17,8 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:paddingHorizontal="48dp"
-        android:paddingTop="20dp"
-        android:paddingBottom="20dp">
+        android:paddingTop="10dp"
+        android:paddingBottom="4dp">
 
         <!-- ━━━━━━━━━━━━ Title row ━━━━━━━━━━━━ -->
         <LinearLayout
@@ -55,8 +55,8 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnCheckUpdate"
                 style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:layout_marginEnd="8dp"
                 android:contentDescription="@string/main_check_update_desc"
                 app:icon="@drawable/ic_update"
@@ -65,8 +65,8 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnGithub"
                 style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:layout_marginEnd="8dp"
                 android:contentDescription="@string/main_open_github_desc"
                 app:icon="@drawable/ic_github"
@@ -75,8 +75,8 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnHelp"
                 style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:contentDescription="@string/main_help_desc"
                 app:icon="@drawable/ic_help"
                 app:iconSize="22dp" />
@@ -87,7 +87,7 @@
             android:id="@+id/statusPillCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="8dp"
             app:cardBackgroundColor="@color/status_idle_container"
             app:cardCornerRadius="14dp"
             app:cardElevation="0dp">
@@ -97,7 +97,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:paddingHorizontal="16dp"
-                android:paddingVertical="10dp"
+                android:paddingVertical="6dp"
                 android:text="@string/main_shizuku_checking"
                 android:textColor="@color/status_idle_on_container"
                 android:textSize="13sp" />
@@ -107,7 +107,7 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="8dp"
             android:baselineAligned="false"
             android:orientation="horizontal">
 
@@ -150,7 +150,7 @@
 
                     <ImageView
                         android:layout_width="match_parent"
-                        android:layout_height="110dp"
+                        android:layout_height="72dp"
                         android:layout_marginTop="6dp"
                         android:layout_marginBottom="6dp"
                         android:contentDescription="@string/main_sc2026_illustration_desc"
@@ -208,7 +208,7 @@
                             android:id="@+id/btnTransportUsb"
                             style="?attr/materialButtonOutlinedStyle"
                             android:layout_width="0dp"
-                            android:layout_height="48dp"
+                            android:layout_height="42dp"
                             android:layout_weight="1"
                             android:text="@string/main_transport_usb"
                             android:textSize="12sp"
@@ -222,7 +222,7 @@
                             android:id="@+id/btnTransportBt"
                             style="?attr/materialButtonOutlinedStyle"
                             android:layout_width="0dp"
-                            android:layout_height="48dp"
+                            android:layout_height="42dp"
                             android:layout_weight="1"
                             android:text="@string/main_transport_bt"
                             android:textSize="12sp"
@@ -253,7 +253,7 @@
                             android:id="@+id/btnModeGamepad"
                             style="?attr/materialButtonOutlinedStyle"
                             android:layout_width="0dp"
-                            android:layout_height="48dp"
+                            android:layout_height="42dp"
                             android:layout_weight="1"
                             android:text="@string/main_mode_gamepad"
                             android:textSize="12sp"
@@ -265,7 +265,7 @@
                             android:id="@+id/btnModeDesktop"
                             style="?attr/materialButtonOutlinedStyle"
                             android:layout_width="0dp"
-                            android:layout_height="48dp"
+                            android:layout_height="42dp"
                             android:layout_weight="1"
                             android:text="@string/main_mode_desktop"
                             android:textSize="12sp"
@@ -290,6 +290,8 @@
 
                             <com.google.android.material.radiobutton.MaterialRadioButton
                                 android:id="@+id/rbXbox360"
+                                android:textColor="@android:color/white"
+                                android:minHeight="34dp"
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
@@ -298,6 +300,8 @@
 
                             <com.google.android.material.radiobutton.MaterialRadioButton
                                 android:id="@+id/rbXboxOne"
+                                android:textColor="@android:color/white"
+                                android:minHeight="34dp"
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
@@ -313,6 +317,8 @@
 
                             <com.google.android.material.radiobutton.MaterialRadioButton
                                 android:id="@+id/rbDualShock4"
+                                android:textColor="@android:color/white"
+                                android:minHeight="34dp"
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
@@ -321,6 +327,8 @@
 
                             <com.google.android.material.radiobutton.MaterialRadioButton
                                 android:id="@+id/rbDualSense"
+                                android:textColor="@android:color/white"
+                                android:minHeight="34dp"
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
@@ -337,7 +345,7 @@
             android:id="@+id/btDeviceRow"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="8dp"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:visibility="gone">
@@ -364,8 +372,8 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnRefreshBt"
                 style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:layout_marginStart="10dp"
                 android:contentDescription="@string/main_refresh_bt_desc"
                 app:icon="@drawable/ic_refresh"
@@ -376,8 +384,8 @@
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnToggleService"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:layout_marginTop="14dp"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
             android:text="@string/btn_start"
             android:textSize="16sp"
             android:textStyle="bold"
@@ -387,7 +395,7 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="8dp"
             android:baselineAligned="false"
             android:orientation="horizontal">
 
@@ -409,11 +417,11 @@
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:padding="12dp">
+                    android:padding="9dp">
 
                     <ImageView
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
+                        android:layout_width="26dp"
+                        android:layout_height="26dp"
                         android:src="@drawable/ic_calibration"
                         app:tint="?attr/colorOnSurfaceVariant"
                         tools:ignore="ContentDescription" />
@@ -447,11 +455,11 @@
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:padding="12dp">
+                    android:padding="9dp">
 
                     <ImageView
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
+                        android:layout_width="26dp"
+                        android:layout_height="26dp"
                         android:src="@drawable/ic_mapping"
                         app:tint="?attr/colorOnSurfaceVariant"
                         tools:ignore="ContentDescription" />
@@ -485,11 +493,11 @@
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:padding="12dp">
+                    android:padding="9dp">
 
                     <ImageView
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
+                        android:layout_width="26dp"
+                        android:layout_height="26dp"
                         android:src="@drawable/ic_game_profiles"
                         app:tint="?attr/colorOnSurfaceVariant"
                         tools:ignore="ContentDescription" />
@@ -522,11 +530,11 @@
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:padding="12dp">
+                    android:padding="9dp">
 
                     <ImageView
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
+                        android:layout_width="26dp"
+                        android:layout_height="26dp"
                         android:src="@drawable/ic_debug"
                         app:tint="?attr/colorOnSurfaceVariant"
                         tools:ignore="ContentDescription" />
