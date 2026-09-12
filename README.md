@@ -1,4 +1,4 @@
-# Steam Controller for Android TV
+# Steam Controller for Android TV (SHIELD TV)
 
 > **SHIELD TV fork.** This is a fork of [SonicDX12/SteamController-Android](https://github.com/SonicDX12/SteamController-Android)
 > focused on **Android TV**, and tested **only on an NVIDIA SHIELD TV (2019 "tube" model,

@@ -12,7 +12,7 @@ package com.steamcontroller.android.update
  */
 object Repo {
     const val OWNER = "mogpt"
-    const val NAME = "SteamController-Android"
+    const val NAME = "SteamController-ShieldTV"
 
     const val WEB_URL = "https://github.com/$OWNER/$NAME"
     const val LATEST_RELEASE_API = "https://api.github.com/repos/$OWNER/$NAME/releases/latest"
