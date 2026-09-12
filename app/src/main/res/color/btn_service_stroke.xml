@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A white ring on focus: the unambiguous "this is selected" cue at TV viewing distance. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="@android:color/white" />
+    <item android:color="@android:color/transparent" />
+</selector>

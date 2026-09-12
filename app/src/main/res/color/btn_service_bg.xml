@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DPAD focus on a TV has to read from across a room. The default Material focus overlay is
+  a low-alpha scrim, which is nearly invisible on an already-bright green fill, so the
+  focused state lifts the fill to the brighter green instead.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="@color/nv_green_bright" />
+    <item android:state_pressed="true" android:color="@color/nv_green_bright" />
+    <item android:color="@color/nv_green" />
+</selector>

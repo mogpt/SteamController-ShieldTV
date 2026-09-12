@@ -96,6 +96,19 @@
                 android:textColor="@color/status_idle_on_container"
                 android:textSize="14sp" />
         </com.google.android.material.card.MaterialCardView>
+        <!-- Shown only when the Shizuku package is absent. Without Shizuku the app cannot
+             create a uinput device at all, so an unexplained "not ready" pill was a dead
+             end for anyone who had not already heard of it. -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnInstallShizuku"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:text="@string/main_install_shizuku"
+            android:textSize="14sp"
+            android:visibility="gone"
+            app:icon="@drawable/ic_update"
+            app:iconGravity="textStart" />
 
         <!-- ━━━━━━━━━━━━ Transport pill ━━━━━━━━━━━━ -->
         <com.google.android.material.button.MaterialButtonToggleGroup
@@ -383,6 +396,9 @@
                 <!-- Big Start / Stop -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnToggleService"
+            app:backgroundTint="@color/btn_service_bg"
+            app:strokeColor="@color/btn_service_stroke"
+            app:strokeWidth="3dp"
                     android:layout_width="match_parent"
                     android:layout_height="64dp"
                     android:layout_marginTop="18dp"

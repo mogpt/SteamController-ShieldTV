@@ -169,4 +169,7 @@
     <string name="menu_save">Save</string>
     <string name="menu_export_backup">Export backup…</string>
     <string name="menu_import_backup">Import backup…</string>
+    <string name="main_install_shizuku">Install Shizuku</string>
+    <string name="main_shizuku_missing">Shizuku is not installed — it is required</string>
+    <string name="main_shizuku_store_failed">Could not open a store. Install Shizuku manually from GitHub.</string>
 </resources>

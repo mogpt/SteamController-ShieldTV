@@ -93,6 +93,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val shizukuRequestCode = 1001
+    private val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
 
     private val shizukuPermissionListener = Shizuku.OnRequestPermissionResultListener { _, grantResult ->
         if (grantResult == android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -161,6 +162,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnHelp.setOnClickListener { showConnectionHelpDialog() }
         binding.btnGithub.setOnClickListener { openGithubRepo() }
+        binding.btnInstallShizuku.setOnClickListener { openShizukuInstall() }
         binding.btnCheckUpdate.setOnClickListener { checkForUpdates(manual = true) }
 
         maybeAutoCheckForUpdates()
@@ -664,10 +666,49 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateShizukuStatus(ok: Boolean) {
         val transport = Prefs.getTransport(this).displayName
-        binding.tvShizukuStatus.text = if (ok)
-            "Shizuku: ready  •  $transport"
-        else
-            "Shizuku: not ready  •  $transport"
+        val installed = isShizukuInstalled()
+        binding.tvShizukuStatus.text = when {
+            ok         -> "Shizuku: ready  •  $transport"
+            !installed -> getString(R.string.main_shizuku_missing)
+            else       -> "Shizuku: not ready  •  $transport"
+        }
+        // Offer the install route only when the package is genuinely absent. "Installed but
+        // not running" is a different problem and a store link would be misleading there.
+        binding.btnInstallShizuku.visibility = if (installed) View.GONE else View.VISIBLE
+    }
+
+    private fun isShizukuInstalled(): Boolean = try {
+        packageManager.getPackageInfo(SHIZUKU_PACKAGE, 0)
+        true
+    } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+        false
+    } catch (_: Throwable) {
+        // Any other failure: assume present rather than nag with a store button.
+        true
+    }
+
+    /**
+     * Send the user somewhere they can actually get Shizuku.
+     *
+     * Tried in order: the installed store app, then the Play web listing, then Shizuku's
+     * GitHub releases. The fallbacks matter on Android TV — the TV Play Store filters out
+     * apps without a leanback launcher, and Shizuku is a phone app, so the market:// intent
+     * can resolve to nothing useful even though Play itself is present.
+     */
+    private fun openShizukuInstall() {
+        val targets = listOf(
+            "market://details?id=$SHIZUKU_PACKAGE",
+            "https://play.google.com/store/apps/details?id=$SHIZUKU_PACKAGE",
+            "https://github.com/RikkaApps/Shizuku/releases/latest",
+        )
+        for (url in targets) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                log("Opened Shizuku install: $url")
+                return
+            } catch (_: Throwable) { /* try the next one */ }
+        }
+        Toast.makeText(this, getString(R.string.main_shizuku_store_failed), Toast.LENGTH_LONG).show()
     }
 
     /**
