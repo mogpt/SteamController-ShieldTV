@@ -162,7 +162,9 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnHelp.setOnClickListener { showConnectionHelpDialog() }
         binding.btnGithub.setOnClickListener { openGithubRepo() }
-        binding.btnInstallShizuku.setOnClickListener { openShizukuInstall() }
+        binding.btnInstallShizuku.setOnClickListener {
+            if (isShizukuInstalled()) openShizukuApp() else openShizukuInstall()
+        }
         binding.btnCheckUpdate.setOnClickListener { checkForUpdates(manual = true) }
 
         maybeAutoCheckForUpdates()
@@ -703,9 +705,50 @@ class MainActivity : AppCompatActivity() {
             !installed -> getString(R.string.main_shizuku_missing)
             else       -> "Shizuku: not ready  •  $transport"
         }
-        // Offer the install route only when the package is genuinely absent. "Installed but
-        // not running" is a different problem and a store link would be misleading there.
-        binding.btnInstallShizuku.visibility = if (installed) View.GONE else View.VISIBLE
+        // One button, three states:
+        //   not installed          -> send them to a store
+        //   installed, not ready   -> open Shizuku itself
+        //   ready                  -> nothing to do, hide it
+        // Shizuku has no leanback launcher, so on Android TV it is invisible on the home
+        // screen and unreachable with a remote. Launching it from here removes the need for
+        // a third-party launcher just to get at it.
+        when {
+            ok -> binding.btnInstallShizuku.visibility = View.GONE
+            !installed -> {
+                binding.btnInstallShizuku.setText(R.string.main_install_shizuku)
+                binding.btnInstallShizuku.setIconResource(R.drawable.ic_update)
+                binding.btnInstallShizuku.visibility = View.VISIBLE
+            }
+            else -> {
+                binding.btnInstallShizuku.setText(R.string.main_open_shizuku)
+                // The download arrow belongs to the install action; nothing is being
+                // downloaded when the app is already present.
+                binding.btnInstallShizuku.icon = null
+                binding.btnInstallShizuku.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    /**
+     * Open the Shizuku app.
+     *
+     * This cannot START the Shizuku service — that needs shell privilege, which is the very
+     * thing Shizuku exists to provide, so the app has no way to bootstrap it. What it can do
+     * is put Shizuku's own UI on screen, where on Android 11+ the user can start it via
+     * wireless-debugging pairing without a PC.
+     */
+    private fun openShizukuApp() {
+        val intent = packageManager.getLaunchIntentForPackage(SHIZUKU_PACKAGE)
+        if (intent == null) {
+            Toast.makeText(this, getString(R.string.main_shizuku_open_failed), Toast.LENGTH_LONG).show()
+            return
+        }
+        try {
+            startActivity(intent)
+            log("Opened Shizuku")
+        } catch (t: Throwable) {
+            Toast.makeText(this, getString(R.string.main_shizuku_open_failed), Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun isShizukuInstalled(): Boolean = try {
