@@ -110,12 +110,19 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- ━━━━━━━━━━━━ RUMBLE ━━━━━━━━━━━━ -->
-            <com.google.android.material.card.MaterialCardView
+            <!-- RUMBLE and GYRO share a column: rumble is short and left a tall
+                 dead space beneath it, while the desktop card had outgrown the screen. -->
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="12dp"
                 android:layout_weight="1"
+                android:orientation="vertical">
+
+            <!-- ━━━━━━━━━━━━ RUMBLE ━━━━━━━━━━━━ -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 app:cardCornerRadius="18dp"
                 app:cardElevation="0dp"
                 app:strokeColor="?attr/colorOutlineVariant"
@@ -174,6 +181,79 @@
                         app:cornerRadius="14dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="?attr/colorOutlineVariant"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="12dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/calib_gyro_header"
+                            android:textColor="?attr/colorPrimary"
+                            android:textSize="12sp"
+                            android:letterSpacing="0.1"
+                            android:layout_marginBottom="6dp" />
+
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/switchGyroEnabled"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/calib_gyro_enable"
+                            android:textColor="?attr/colorOnPrimaryContainer"
+                            android:textSize="13sp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnGyroActivation"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:textSize="12sp"
+                            android:text="@string/calib_gyro_activation" />
+
+                        <com.google.android.material.slider.Slider
+                            android:id="@+id/sliderGyroSensitivity"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:contentDescription="@string/calib_gyro_sensitivity"
+                            android:stepSize="0.1"
+                            android:value="1.0"
+                            android:valueFrom="0.1"
+                            android:valueTo="3.0" />
+
+                        <TextView
+                            android:id="@+id/tvGyroSensitivity"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="monospace"
+                            android:text="1.0x"
+                            android:textColor="?attr/colorOnPrimaryContainer"
+                            android:textSize="14sp"
+                            tools:ignore="HardcodedText" />
+
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/switchGyroInvertY"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/calib_gyro_invert_y"
+                            android:textColor="?attr/colorOnPrimaryContainer"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
 
             <!-- ━━━━━━━━━━━━ STICKS ━━━━━━━━━━━━ -->
             <com.google.android.material.card.MaterialCardView

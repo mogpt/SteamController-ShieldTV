@@ -172,4 +172,9 @@
     <string name="main_install_shizuku">Install Shizuku</string>
     <string name="main_shizuku_missing">Shizuku is not installed — it is required</string>
     <string name="main_shizuku_store_failed">Could not open a store. Install Shizuku manually from GitHub.</string>
+    <string name="calib_gyro_header">GYRO AIMING</string>
+    <string name="calib_gyro_enable">Enable gyro aiming</string>
+    <string name="calib_gyro_sensitivity">Gyro sensitivity</string>
+    <string name="calib_gyro_invert_y">Invert gyro Y</string>
+    <string name="calib_gyro_activation">Activation</string>
 </resources>

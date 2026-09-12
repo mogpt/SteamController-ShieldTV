@@ -108,6 +108,12 @@ class UInputGamepad(private val context: Context, initialProfile: GamepadProfile
     private var lastLeftPadY: Int = 0
     private var leftPadHadContact: Boolean = false
     @Volatile private var cachedMouseSensitivity: Float = 1f
+    // Gyro aiming
+    private val gyro = com.steamcontroller.android.input.GyroAim()
+    @Volatile private var cachedGyroEnabled = false
+    @Volatile private var cachedGyroSens = 1f
+    @Volatile private var cachedGyroActivation = com.steamcontroller.android.input.GyroActivation.RIGHT_PAD_TOUCH
+    @Volatile private var cachedGyroInvertY = false
     @Volatile private var cachedTrackpadAsMouse: Boolean = true
     // Trigger / pad scroll: accumulator so we can convert continuous 0..32767 deltas into discrete wheel ticks
     private var scrollAccumulator: Int = 0
@@ -273,6 +279,10 @@ class UInputGamepad(private val context: Context, initialProfile: GamepadProfile
             compileMapping(cachedMapping)
             cachedMouseSensitivity = Prefs.getMouseSensitivity(context)
             cachedTrackpadAsMouse  = Prefs.getTrackpadAsMouseInGamepad(context)
+            cachedGyroEnabled      = Prefs.getGyroEnabled(context)
+            cachedGyroSens         = Prefs.getGyroSensitivity(context)
+            cachedGyroActivation   = Prefs.getGyroActivation(context)
+            cachedGyroInvertY      = Prefs.getGyroInvertY(context)
             lastCalRefresh = now
         }
 
@@ -333,13 +343,38 @@ class UInputGamepad(private val context: Context, initialProfile: GamepadProfile
 
         // SC2026 reports Y positive = up; Linux input ABS_Y convention is Y positive = down.
         val ly = -lyCalRaw.coerceAtLeast(-32767)
-        val ry = -ryCalRaw.coerceAtLeast(-32767)
+        var ry = -ryCalRaw.coerceAtLeast(-32767)
+        var rx = rxCal
+
+        // ── Gyro aiming ──────────────────────────────────────────────────────
+        // Added on top of the physical right stick rather than replacing it, so stick and
+        // gyro compose the way they do on a Steam Deck: coarse aim with the stick, fine
+        // correction by twisting.
+        if (cachedGyroEnabled) {
+            val act = cachedGyroActivation
+            val live = act.mask == 0 || state.isButtonPressed(act.mask)
+            if (live) {
+                val (yawRate, pitchRate) = gyro.update(
+                    state.quatW, state.quatX, state.quatY, state.quatZ,
+                    android.os.SystemClock.uptimeMillis()
+                )
+                val gx = gyro.toStick(yawRate, cachedGyroSens)
+                var gy = gyro.toStick(pitchRate, cachedGyroSens)
+                if (cachedGyroInvertY) gy = -gy
+                rx = (rx + gx).coerceIn(-32767, 32767)
+                ry = (ry + gy).coerceIn(-32767, 32767)
+            } else {
+                // Drop history while inactive, so releasing and re-gripping doesn't replay
+                // the rotation that happened in between as one violent flick.
+                gyro.reset()
+            }
+        }
 
         try {
             svc.sendFrame(
                 xboxButtons,
                 lxCal, ly,
-                rxCal, ry,
+                rx, ry,
                 lt, rt,
                 dpadX, dpadY
             )

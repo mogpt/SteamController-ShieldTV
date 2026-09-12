@@ -2,6 +2,7 @@ package com.steamcontroller.android
 
 import android.content.Context
 import com.steamcontroller.android.input.DEFAULT_MAPPING
+import com.steamcontroller.android.input.GyroActivation
 import com.steamcontroller.android.input.NamedProfile
 import com.steamcontroller.android.input.SteamButton
 import com.steamcontroller.android.input.StickCalibration
@@ -38,6 +39,10 @@ object Prefs {
     private const val KEY_RUMBLE_INTENSITY = "rumble_intensity"  // 0..100
     private const val KEY_MOUSE_SENSITIVITY = "mouse_sensitivity_x10"  // 1..30 → 0.1x..3.0x
     private const val KEY_TRACKPAD_AS_MOUSE = "trackpad_as_mouse_gamepad"  // sidecar mouse while in Xbox/PS profiles
+    private const val KEY_GYRO_ENABLED = "gyro_enabled"
+    private const val KEY_GYRO_SENS = "gyro_sensitivity_x10"   // 1..30 -> 0.1x..3.0x
+    private const val KEY_GYRO_ACTIVATION = "gyro_activation"   // see GyroActivation
+    private const val KEY_GYRO_INVERT_Y = "gyro_invert_y"
     private const val KEY_NAMED_PROFILES = "named_profiles_json"
     private const val KEY_ACTIVE_NAMED_PROFILE_ID = "active_named_profile_id"
 
@@ -167,6 +172,36 @@ object Prefs {
 
     fun setTrackpadAsMouseInGamepad(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(KEY_TRACKPAD_AS_MOUSE, enabled).apply()
+    }
+
+    // ─── Gyro aiming ─────────────────────────────────────────────────────────
+    fun getGyroEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_GYRO_ENABLED, false)
+
+    fun setGyroEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_GYRO_ENABLED, enabled).apply()
+    }
+
+    /** Gyro sensitivity multiplier, 0.1x..3.0x. */
+    fun getGyroSensitivity(context: Context): Float =
+        (prefs(context).getInt(KEY_GYRO_SENS, 10).coerceIn(1, 30)) / 10f
+
+    fun setGyroSensitivity(context: Context, multiplier: Float) {
+        prefs(context).edit().putInt(KEY_GYRO_SENS, (multiplier * 10f).toInt().coerceIn(1, 30)).apply()
+    }
+
+    fun getGyroActivation(context: Context): GyroActivation =
+        GyroActivation.fromId(prefs(context).getInt(KEY_GYRO_ACTIVATION, GyroActivation.RIGHT_PAD_TOUCH.id))
+
+    fun setGyroActivation(context: Context, a: GyroActivation) {
+        prefs(context).edit().putInt(KEY_GYRO_ACTIVATION, a.id).apply()
+    }
+
+    fun getGyroInvertY(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_GYRO_INVERT_Y, false)
+
+    fun setGyroInvertY(context: Context, invert: Boolean) {
+        prefs(context).edit().putBoolean(KEY_GYRO_INVERT_Y, invert).apply()
     }
 
     // ─── Button mapping ──────────────────────────────────────────────────────

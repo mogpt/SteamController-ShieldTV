@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.slider.Slider
+import com.steamcontroller.android.input.GyroActivation
 import com.steamcontroller.android.databinding.ActivityCalibrationBinding
 import com.steamcontroller.android.input.StickCalibration
 import com.steamcontroller.android.service.ControllerService
@@ -70,6 +71,41 @@ class CalibrationActivity : AppCompatActivity() {
             binding.tvMouseSensitivity.text = "%.1f×".format(value)
             Prefs.setMouseSensitivity(this, value)
         })
+
+        // ── Gyro aiming ──────────────────────────────────────────────────────
+        // All of these are re-read by UInputGamepad on its 250ms pref refresh, so they take
+        // effect without restarting the service — you can tune sensitivity while aiming.
+        binding.switchGyroEnabled.isChecked = Prefs.getGyroEnabled(this)
+        binding.switchGyroEnabled.setOnCheckedChangeListener { _, checked ->
+            Prefs.setGyroEnabled(this, checked)
+        }
+
+        val savedGyroSens = Prefs.getGyroSensitivity(this)
+        binding.sliderGyroSensitivity.value = savedGyroSens
+        binding.tvGyroSensitivity.text = "%.1f×".format(savedGyroSens)
+        binding.sliderGyroSensitivity.addOnChangeListener(Slider.OnChangeListener { _, value, _ ->
+            binding.tvGyroSensitivity.text = "%.1f×".format(value)
+            Prefs.setGyroSensitivity(this, value)
+        })
+
+        binding.switchGyroInvertY.isChecked = Prefs.getGyroInvertY(this)
+        binding.switchGyroInvertY.setOnCheckedChangeListener { _, checked ->
+            Prefs.setGyroInvertY(this, checked)
+        }
+
+        // Activation is a cycling button rather than a dropdown: one DPAD click steps to the
+        // next mode, with no popup to navigate on a TV.
+        fun renderGyroActivation() {
+            binding.btnGyroActivation.text =
+                getString(R.string.calib_gyro_activation) + ": " + Prefs.getGyroActivation(this).displayName
+        }
+        renderGyroActivation()
+        binding.btnGyroActivation.setOnClickListener {
+            val all = GyroActivation.ALL
+            val next = all[(Prefs.getGyroActivation(this).ordinal + 1) % all.size]
+            Prefs.setGyroActivation(this, next)
+            renderGyroActivation()
+        }
 
         // Trackpads-as-mouse toggle (active alongside Xbox/PS profiles only).
         // UInputGamepad re-reads the pref at most every 250ms so flipping it is
