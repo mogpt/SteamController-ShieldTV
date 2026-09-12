@@ -11,7 +11,7 @@ package com.steamcontroller.android.update
  * Single source of truth — change OWNER here and both call sites follow.
  */
 object Repo {
-    const val OWNER = "SonicDX12"
+    const val OWNER = "mogpt"
     const val NAME = "SteamController-Android"
 
     const val WEB_URL = "https://github.com/$OWNER/$NAME"

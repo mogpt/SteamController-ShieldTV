@@ -1,4 +1,41 @@
-# Steam Controller for Android
+# Steam Controller for Android TV
+
+> **SHIELD TV fork.** This is a fork of [SonicDX12/SteamController-Android](https://github.com/SonicDX12/SteamController-Android)
+> focused on **Android TV**, and tested **only on an NVIDIA SHIELD TV (2019 "tube" model,
+> Android 11, `armeabi-v7a`)**. It has not been tested on phones, tablets, or any other TV
+> device. Upstream is the place to go for general Android use.
+>
+> Releases here are built from this fork and are signed with a different key than upstream,
+> so you cannot install one over the other — uninstall first (export your settings from
+> inside the app beforehand).
+>
+> **What this fork changes**
+>
+> *Fixes found while debugging on real hardware:*
+> - Leaked virtual input devices are reaped on startup. Each ungraceful stop previously left
+>   a dead gamepad, mouse and keyboard registered with Android until reboot; a game claiming
+>   "player 1" then bound to the oldest corpse, so the controller did nothing in-game while
+>   the app still reported itself connected. This was the cause of "my controller stops
+>   working when I switch to GeForce NOW".
+> - The BLE subscription chain no longer stalls. A dropped GATT callback left the app
+>   subscribed only to the first notify characteristic, reporting the controller ready while
+>   no input could ever arrive.
+> - The controller is matched by name rather than MAC. The SC2026's BLE address rotates, so a
+>   stored address went stale and the app silently failed to connect until the device was
+>   re-picked by hand.
+> - Capacitive button bits (trackpad touch, grips, stick touch) are no longer frozen by the
+>   button debounce, which had broken the sidecar trackpad mouse.
+> - The fallback injection path actually sends button events; it previously compared a frame
+>   against itself and emitted nothing but axes.
+> - Service shutdown no longer runs blocking binder calls on the main thread, and no longer
+>   closes the USB connection while the read loop is still inside `bulkTransfer`.
+>
+> *Android TV specifics:*
+> - NVIDIA SHIELD visual theme, and a layout that fits a 1080p screen without scrolling.
+> - Visible DPAD focus on the primary action.
+> - An **Install Shizuku** button, since Shizuku has no leanback launcher and is invisible on
+>   the SHIELD home screen.
+> - Per-frame allocation removed from the input hot path, which matters on the 2 GB tube.
 
 Use the **Steam Controller 2026** (Valve, codename *Ibex*) as a standard Android gamepad — no root required. Connect via USB OTG / wireless Puck, or directly via Bluetooth.
 
