@@ -133,12 +133,58 @@ class BluetoothHidManager(private val context: Context) {
     ) {
         this.onReport = onReport
         this.onConnectionChange = onConnectionChange
+        lastDevice = device
+        intentionalDisconnect = false
+        reconnectAttempts = 0
+        cancelReconnect()
+        openGatt(device)
+    }
+
+    private fun openGatt(device: BluetoothDevice) {
         Log.i(TAG, "Connecting GATT to ${safeName(device)} (${device.address})")
         state = State.CONNECTING
         gatt = device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
     }
 
+    // ── Reconnect ────────────────────────────────────────────────────────────
+    // A BLE link drops for all sorts of ordinary reasons: RF interference, the controller
+    // idling out, the radio being starved while the box is busy. The manager previously
+    // treated every drop as terminal — it closed the GATT, cleared its state and stopped —
+    // so a momentary blip killed the controller until the user noticed and restarted the
+    // service by hand. That is almost certainly the "disconnects for no apparent reason".
+    private var lastDevice: BluetoothDevice? = null
+    @Volatile private var intentionalDisconnect = false
+    private var reconnectAttempts = 0
+    private var reconnectRunnable: Runnable? = null
+
+    private fun cancelReconnect() {
+        reconnectRunnable?.let { subsHandler.removeCallbacks(it) }
+        reconnectRunnable = null
+    }
+
+    /**
+     * Retry with exponential backoff, capped. Retries are unbounded on purpose: this only
+     * runs while the foreground service is alive, which is an explicit user decision, and
+     * giving up silently is exactly the behaviour being fixed.
+     */
+    private fun scheduleReconnect() {
+        val device = lastDevice ?: return
+        if (intentionalDisconnect) return
+        cancelReconnect()
+        val delay = (1000L shl reconnectAttempts.coerceAtMost(4)).coerceAtMost(15_000L)
+        reconnectAttempts++
+        Log.i(TAG, "Link lost — reconnecting in ${delay}ms (attempt $reconnectAttempts)")
+        val r = Runnable {
+            if (intentionalDisconnect) return@Runnable
+            openGatt(device)
+        }
+        reconnectRunnable = r
+        subsHandler.postDelayed(r, delay)
+    }
+
     fun disconnect() {
+        intentionalDisconnect = true
+        cancelReconnect()
         try {
             gatt?.disconnect()
             gatt?.close()
@@ -278,6 +324,8 @@ class BluetoothHidManager(private val context: Context) {
             Log.i(TAG, "onConnectionStateChange status=$status newState=$newState")
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
+                    reconnectAttempts = 0
+                    cancelReconnect()
                     onConnectionChange?.invoke(true)
                     // Request a tight connection interval (11.25–15ms) to minimize input latency.
                     // Default is ~50ms which is fine for sensors but laggy for gamepads.
@@ -303,6 +351,7 @@ class BluetoothHidManager(private val context: Context) {
                     pendingSubs.clear()
                     subsIndex = 0
                     state = State.IDLE
+                    scheduleReconnect()
                 }
             }
         }

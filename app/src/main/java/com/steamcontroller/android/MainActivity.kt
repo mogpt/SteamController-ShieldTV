@@ -597,7 +597,38 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Ask once to be exempted from battery optimisation.
+     *
+     * Android TV puts unused apps into progressively more restricted standby buckets and
+     * dozes the device when idle, which throttles the background work this service depends
+     * on. A foreground service is not an exemption from that. Asked once only — repeatedly
+     * shoving a system dialog at someone who already declined is hostile, and the app still
+     * works without it, just less reliably in the background.
+     */
+    private fun maybeRequestBatteryExemption() {
+        if (Prefs.getAskedBatteryExemption(this)) return
+        val pm = getSystemService(android.os.PowerManager::class.java) ?: return
+        if (pm.isIgnoringBatteryOptimizations(packageName)) return
+        Prefs.setAskedBatteryExemption(this, true)
+        try {
+            startActivity(
+                Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                    .setData(Uri.parse("package:$packageName"))
+            )
+            log("Requested battery optimisation exemption")
+        } catch (t: Throwable) {
+            // Some TV builds ship no handler for this intent; fall back to the general list.
+            try {
+                startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            } catch (_: Throwable) {
+                log("No battery optimisation settings screen available")
+            }
+        }
+    }
+
     private fun startBluetoothService() {
+        maybeRequestBatteryExemption()
         if (Prefs.getBluetoothAddress(this) == null) {
             Toast.makeText(this, "Select a paired Bluetooth device first", Toast.LENGTH_LONG).show()
             return

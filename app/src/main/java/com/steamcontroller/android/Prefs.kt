@@ -39,6 +39,7 @@ object Prefs {
     private const val KEY_RUMBLE_INTENSITY = "rumble_intensity"  // 0..100
     private const val KEY_MOUSE_SENSITIVITY = "mouse_sensitivity_x10"  // 1..30 → 0.1x..3.0x
     private const val KEY_TRACKPAD_AS_MOUSE = "trackpad_as_mouse_gamepad"  // sidecar mouse while in Xbox/PS profiles
+    private const val KEY_ASKED_BATTERY_EXEMPTION = "asked_battery_exemption"
     private const val KEY_GYRO_ENABLED = "gyro_enabled"
     private const val KEY_GYRO_SENS = "gyro_sensitivity_x10"   // 1..30 -> 0.1x..3.0x
     private const val KEY_GYRO_ACTIVATION = "gyro_activation"   // see GyroActivation
@@ -172,6 +173,14 @@ object Prefs {
 
     fun setTrackpadAsMouseInGamepad(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(KEY_TRACKPAD_AS_MOUSE, enabled).apply()
+    }
+
+    /** Whether the battery-optimisation exemption prompt has already been shown once. */
+    fun getAskedBatteryExemption(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_ASKED_BATTERY_EXEMPTION, false)
+
+    fun setAskedBatteryExemption(context: Context, asked: Boolean) {
+        prefs(context).edit().putBoolean(KEY_ASKED_BATTERY_EXEMPTION, asked).apply()
     }
 
     // ─── Gyro aiming ─────────────────────────────────────────────────────────

@@ -107,6 +107,47 @@ class ControllerService : Service() {
 
     /** Upper bound on how long onDestroy will wait for the Shizuku user service teardown. */
     private val UNBIND_TIMEOUT_MS = 2000L
+
+    /**
+     * Held for as long as the service runs.
+     *
+     * A foreground service keeps the process from being killed, but it does NOT keep the CPU
+     * out of suspend. While the SHIELD is idle the kernel can suspend between wakeups, and
+     * the BLE callbacks that feed this service stop being serviced promptly — the controller
+     * appears to "disconnect for no reason" even though nothing was killed. A partial wake
+     * lock keeps the CPU running so reports keep flowing with the screen off or another app
+     * in front. It costs power, which is the right trade for a mains-powered TV box, and it
+     * is only held while the user has explicitly started the service.
+     */
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
+
+    private fun acquireWakeLock() {
+        if (wakeLock?.isHeld == true) return
+        try {
+            val pm = getSystemService(android.os.PowerManager::class.java)
+            wakeLock = pm?.newWakeLock(
+                android.os.PowerManager.PARTIAL_WAKE_LOCK,
+                "SteamController::controller"
+            )?.apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+            Log.i(TAG, "Partial wake lock acquired")
+        } catch (t: Throwable) {
+            Log.w(TAG, "Could not acquire wake lock: ${t.message}")
+        }
+    }
+
+    private fun releaseWakeLock() {
+        try {
+            wakeLock?.let { if (it.isHeld) it.release() }
+            Log.i(TAG, "Wake lock released")
+        } catch (t: Throwable) {
+            Log.w(TAG, "Could not release wake lock: ${t.message}")
+        } finally {
+            wakeLock = null
+        }
+    }
     private var confirmedState: SteamControllerState? = null
     private var pendingButtons = 0
     private var pendingSinceMs = 0L
@@ -317,6 +358,8 @@ class ControllerService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, buildNotification())
         }
+
+        acquireWakeLock()
 
         val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent?.getParcelableExtra(EXTRA_DEVICE, UsbDevice::class.java)
@@ -661,6 +704,7 @@ class ControllerService : Service() {
         //
         // 2. The USB read loop was still in bulkTransfer() when usbManager.disconnect() closed
         //    the connection underneath it. Stop the reader first, then tear the transport down.
+        releaseWakeLock()
         reader?.stop()
         scope.cancel()
 
