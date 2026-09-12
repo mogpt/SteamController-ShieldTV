@@ -22,7 +22,7 @@
     <!-- ━━━━━━━━━━━━ MainActivity ━━━━━━━━━━━━ -->
     <string name="main_title">Steam Controller</string>
     <string name="main_subtitle">for Android via Shizuku</string>
-    <string name="main_subtitle_tv">for Android TV via Shizuku</string>
+    <string name="main_subtitle_tv">SHIELD TV edition · via Shizuku</string>
     <string name="main_open_github_desc">Open GitHub repository</string>
     <string name="main_help_desc">Help: switching connection modes</string>
     <string name="main_check_update_desc">Check for updates</string>

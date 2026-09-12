@@ -55,8 +55,8 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnCheckUpdate"
                 style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:layout_marginEnd="8dp"
                 android:contentDescription="@string/main_check_update_desc"
                 app:icon="@drawable/ic_update"
@@ -65,8 +65,8 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnGithub"
                 style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:layout_marginEnd="8dp"
                 android:contentDescription="@string/main_open_github_desc"
                 app:icon="@drawable/ic_github"
@@ -75,8 +75,8 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnHelp"
                 style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:contentDescription="@string/main_help_desc"
                 app:icon="@drawable/ic_help"
                 app:iconSize="22dp" />
@@ -150,7 +150,7 @@
 
                     <ImageView
                         android:layout_width="match_parent"
-                        android:layout_height="72dp"
+                        android:layout_height="110dp"
                         android:layout_marginTop="6dp"
                         android:layout_marginBottom="6dp"
                         android:contentDescription="@string/main_sc2026_illustration_desc"
@@ -372,8 +372,8 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnRefreshBt"
                 style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:layout_marginStart="10dp"
                 android:contentDescription="@string/main_refresh_bt_desc"
                 app:icon="@drawable/ic_refresh"

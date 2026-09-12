@@ -50,7 +50,7 @@ class MainActivity : AppCompatActivity() {
     private var hasSeenActiveMode = false
 
     private val usbPermissionAction = "com.steamcontroller.android.USB_PERMISSION"
-    private val githubRepoUrl = "https://github.com/SonicDX12/SteamController-Android"
+    private val githubRepoUrl = com.steamcontroller.android.update.Repo.WEB_URL
 
     private var pendingUpdateDownloadId: Long = -1L
     private var pendingUpdateApkFile: File? = null

@@ -12,8 +12,7 @@ import java.net.URL
  */
 object UpdateChecker {
 
-    private const val API_URL =
-        "https://api.github.com/repos/SonicDX12/SteamController-Android/releases/latest"
+    private const val API_URL = Repo.LATEST_RELEASE_API
 
     data class ReleaseInfo(
         val tagName: String,
