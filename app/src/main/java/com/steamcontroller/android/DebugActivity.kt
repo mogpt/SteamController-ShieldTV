@@ -19,9 +19,6 @@ class DebugActivity : AppCompatActivity() {
     private lateinit var binding: ActivityDebugBinding
 
     // ms timestamps for Hz calculation
-    private var lastReportTime = 0L
-    private var reportCount = 0
-    private var hzAccum = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,7 +40,6 @@ class DebugActivity : AppCompatActivity() {
                 ControllerService.stateFlow.filterNotNull().collect { state ->
                     updateButtons(state)
                     updateAxes(state)
-                    updateHz()
                 }
             }
         }
@@ -52,6 +48,15 @@ class DebugActivity : AppCompatActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 ControllerService.rawReportFlow.filterNotNull().collect { raw ->
                     binding.tvRawHex.text = formatHex(raw)
+                }
+            }
+        }
+
+        // Rate is measured in the service, not from these throttled UI flows.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                ControllerService.hidRateFlow.collect { hz ->
+                    binding.tvReportRate.text = "$hz Hz"
                 }
             }
         }
@@ -137,21 +142,6 @@ class DebugActivity : AppCompatActivity() {
         binding.tvQZ.text = "qZ: %5d".format(s.quatZ.toInt())
     }
 
-    private fun updateHz() {
-        val now = System.currentTimeMillis()
-        if (lastReportTime != 0L) {
-            hzAccum += now - lastReportTime
-            reportCount++
-            if (reportCount >= 30) {
-                val avgMs = hzAccum / reportCount
-                val hz = if (avgMs > 0) 1000 / avgMs else 0
-                binding.tvReportRate.text = "$hz Hz"
-                reportCount = 0
-                hzAccum = 0
-            }
-        }
-        lastReportTime = now
-    }
 
     private fun formatHex(buf: ByteArray): String {
         val sb = StringBuilder()

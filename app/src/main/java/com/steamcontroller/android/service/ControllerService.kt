@@ -60,6 +60,15 @@ class ControllerService : Service() {
         // Controller battery as 0..100, or null if unknown. Updated when a HID report carries it.
         private val _batteryFlow = MutableStateFlow<Int?>(null)
         val batteryFlow: StateFlow<Int?> = _batteryFlow.asStateFlow()
+
+        // True HID report rate in Hz, recomputed once a second.
+        //
+        // This has to be measured here rather than in DebugActivity: the UI-facing flows are
+        // deliberately throttled, so counting their emissions measures the throttle, not the
+        // controller. Reading ~30Hz over Bluetooth and concluding the link was slow would be
+        // an easy and completely wrong diagnosis.
+        private val _hidRateFlow = MutableStateFlow(0)
+        val hidRateFlow: StateFlow<Int> = _hidRateFlow.asStateFlow()
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -444,7 +453,20 @@ class ControllerService : Service() {
         return true
     }
 
+    private var rateWindowStartMs = 0L
+    private var rateFrames = 0
+
     private fun onHidFrame(state: SteamControllerState, raw: ByteArray) {
+        // True report rate, sampled over a 1s window.
+        val tRate = android.os.SystemClock.uptimeMillis()
+        if (rateWindowStartMs == 0L) rateWindowStartMs = tRate
+        rateFrames++
+        if (tRate - rateWindowStartMs >= 1000) {
+            _hidRateFlow.value = (rateFrames * 1000L / (tRate - rateWindowStartMs)).toInt()
+            rateWindowStartMs = tRate
+            rateFrames = 0
+        }
+
         // The UI-facing flows are display-only. Writing them on every HID frame pushed up to
         // 333 updates/s at MainActivity and DebugActivity, whose collectors run on the main
         // thread — enough to visibly hitch the UI on low-RAM devices while adding nothing a
@@ -654,6 +676,7 @@ class ControllerService : Service() {
         // observer flips back to disconnected on stop.
         _stateFlow.value = null
         _batteryFlow.value = null
+        _hidRateFlow.value = 0
         super.onDestroy()
     }
 
