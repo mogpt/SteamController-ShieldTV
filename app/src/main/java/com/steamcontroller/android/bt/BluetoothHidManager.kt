@@ -45,7 +45,6 @@ class BluetoothHidManager(private val context: Context) {
     private var gatt: BluetoothGatt? = null
     private var featureWriteChar: BluetoothGattCharacteristic? = null
     private var batteryChar: BluetoothGattCharacteristic? = null
-    private var pendingBatteryRead = false
 
     private val pendingSubs = mutableListOf<BluetoothGattCharacteristic>()
     private var subsIndex = 0
@@ -71,6 +70,30 @@ class BluetoothHidManager(private val context: Context) {
     private val MAX_SUBSCRIBE_RETRIES = 1
     /** Backoff before re-issuing a descriptor write the stack rejected as busy. */
     private val SUBSCRIBE_BUSY_RETRY_MS = 150L
+
+    // ── Battery polling ──────────────────────────────────────────────────────
+    // The battery characteristic (100f6c78) never notifies on this hardware. Its CCCD
+    // write is issued as part of the subscription chain, but the FIRST descriptor write of
+    // that chain is accepted and never completes, wedging Android's one-operation-at-a-time
+    // GATT queue, so every later write — including this CCCD — is rejected for the rest of
+    // the connection. State reports keep arriving only because their CCCD was already
+    // enabled on the controller during pairing and setCharacteristicNotification() enables
+    // the local side without needing the queue.
+    //
+    // Reads are not affected by that wedge (it's writes that are stuck), so the fix is to
+    // stop waiting for a notification that will never come and just ask. There already was
+    // a one-shot seed read chained off the disable-lizard write; this turns it into a
+    // repeating poll so the level tracks the battery draining over a long session.
+    //
+    // 30s is a deliberate compromise: a controller battery moves by ~1% every several
+    // minutes, so this is already far more often than the value changes, while costing one
+    // tiny GATT read against a link carrying ~81 state reports a second.
+    private val BATTERY_POLL_INTERVAL_MS = 30_000L
+    /** Re-try delay when the read is refused because another GATT op is in flight. */
+    private val BATTERY_POLL_BUSY_RETRY_MS = 750L
+    /** Grace period before the first read, so it doesn't race the disable-lizard write. */
+    private val BATTERY_POLL_FIRST_DELAY_MS = 500L
+    private var batteryPollRunnable: Runnable? = null
 
     /** Run subscribeNext after [delayMs], reusing the timeout slot so it is cancellable. */
     private fun scheduleSubs(g: BluetoothGatt, delayMs: Long) {
@@ -103,6 +126,46 @@ class BluetoothHidManager(private val context: Context) {
         }
         subsTimeout = r
         subsHandler.postDelayed(r, SUBSCRIBE_TIMEOUT_MS)
+    }
+
+    /**
+     * (Re)arm the repeating battery read. Idempotent — calling it again just resets the timer.
+     *
+     * Runs on the main looper alongside the subscription timeouts, so every GATT call this
+     * class makes is issued from one thread and the ordering is easy to reason about.
+     */
+    private fun startBatteryPolling(g: BluetoothGatt) {
+        stopBatteryPolling()
+        val ch = batteryChar ?: run {
+            Log.w(TAG, "No battery characteristic — battery will stay unknown")
+            return
+        }
+        val r = object : Runnable {
+            override fun run() {
+                if (state != State.READY || gatt !== g) return
+                val ok = try { g.readCharacteristic(ch) } catch (t: Throwable) {
+                    Log.w(TAG, "Battery read threw: ${t.message}"); false
+                }
+                // A false here means the stack had another operation outstanding (most
+                // likely the 800ms heartbeat write). Come back shortly rather than waiting
+                // out the full interval — otherwise a steady collision could starve the
+                // read indefinitely and leave the UI on "—" while looking healthy.
+                subsHandler.postDelayed(
+                    this,
+                    if (ok) BATTERY_POLL_INTERVAL_MS else BATTERY_POLL_BUSY_RETRY_MS,
+                )
+            }
+        }
+        batteryPollRunnable = r
+        // Short initial delay rather than firing immediately: this is armed at the same
+        // moment the disable-lizard write goes out, and a read issued on top of an
+        // in-flight write is simply rejected.
+        subsHandler.postDelayed(r, BATTERY_POLL_FIRST_DELAY_MS)
+    }
+
+    private fun stopBatteryPolling() {
+        batteryPollRunnable?.let { subsHandler.removeCallbacks(it) }
+        batteryPollRunnable = null
     }
 
     @Volatile private var state: State = State.IDLE
@@ -194,7 +257,7 @@ class BluetoothHidManager(private val context: Context) {
             gatt = null
             featureWriteChar = null
             batteryChar = null
-            pendingBatteryRead = false
+            stopBatteryPolling()
             cancelSubsTimeout()
             pendingSubs.clear()
             subsIndex = 0
@@ -347,6 +410,7 @@ class BluetoothHidManager(private val context: Context) {
                     try { g.close() } catch (_: Throwable) {}
                     gatt = null
                     featureWriteChar = null
+                    stopBatteryPolling()
                     cancelSubsTimeout()
                     pendingSubs.clear()
                     subsIndex = 0
@@ -432,12 +496,6 @@ class BluetoothHidManager(private val context: Context) {
         ) {
             heartbeatBusy.set(false)
             if (status != 0) Log.w(TAG, "Write ${ch.uuid} failed: status=$status")
-            // GATT ops are serialized (only one in flight) — chain the seed battery read
-            // right after the disable-lizard write that follows subscription setup finishes.
-            if (pendingBatteryRead) {
-                pendingBatteryRead = false
-                batteryChar?.let { g.readCharacteristic(it) }
-            }
         }
 
         // Deprecated 3-arg overload (not the API 33+ byte[]-carrying one) — minSdk 26 means
@@ -449,14 +507,31 @@ class BluetoothHidManager(private val context: Context) {
             status: Int
         ) {
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                Log.w(TAG, "Battery seed read failed: status=$status")
+                Log.w(TAG, "Battery read failed: status=$status")
                 return
             }
             val data = ch.value ?: return
-            if (shortUuid(ch.uuid) == BATTERY_CHAR_SHORT && data.size == 14) {
-                onReport?.invoke(byteArrayOf(0x43.toByte(), data[1], 0x00))
+            if (shortUuid(ch.uuid) != BATTERY_CHAR_SHORT) return
+            // byte[1] is the percent — the one byte of this characteristic that holds still
+            // across samples taken seconds apart while the rest churn (counter/checksum).
+            // Length is only sanity-checked, not pinned to the 14 bytes seen on the notify
+            // path: a read can legitimately return a differently-sized payload, and
+            // requiring an exact match would silently drop every reading.
+            if (data.size < 2) {
+                Log.w(TAG, "Battery read too short (${data.size}B)")
+                return
             }
+            if (batteryReadCount++ == 0) {
+                Log.i(TAG, "First battery read (${data.size}B): " +
+                    data.joinToString(" ") { "%02x".format(it) })
+            } else {
+                Log.v(TAG, "Battery read #$batteryReadCount: ${data[1].toInt() and 0xFF}%")
+            }
+            onReport?.invoke(byteArrayOf(0x43.toByte(), data[1], 0x00))
         }
+
+        /** Log the first payload in full so an unexpected layout is diagnosable from logcat. */
+        private var batteryReadCount = 0
 
         private var reportCounter = 0
         override fun onCharacteristicChanged(
@@ -509,17 +584,14 @@ class BluetoothHidManager(private val context: Context) {
             state = State.READY
             if (ch == null) {
                 Log.w(TAG, "No feature write char; skipping disable lizard")
-                // Notify-only battery char never pushes until its value changes on the
-                // firmware side — seed it with an explicit read so the UI isn't stuck on
-                // "—" for controllers whose battery % doesn't tick during the session.
-                batteryChar?.let { g.readCharacteristic(it) }
+                startBatteryPolling(g)
                 return
             }
             ch.value = DISABLE_LIZARD
             ch.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-            pendingBatteryRead = batteryChar != null
             val ok = g.writeCharacteristic(ch)
             Log.i(TAG, "Disable lizard write: $ok")
+            startBatteryPolling(g)
             return
         }
 
