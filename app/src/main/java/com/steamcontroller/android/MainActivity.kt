@@ -153,6 +153,7 @@ class MainActivity : AppCompatActivity() {
         setupTransportDropdown()
         setupControlModeToggle()
         setupGamepadVariantRadios()
+        setupAutoStartSwitches()
         requestNotificationPermissionIfNeeded()
 
         binding.btnRefreshBt.setOnClickListener {
@@ -512,6 +513,31 @@ class MainActivity : AppCompatActivity() {
         binding.rbDualSense?.isChecked  = (profile == GamepadProfile.DUALSENSE)
     }
 
+    /**
+     * Auto-start switches. Both default ON (see Prefs) — the settings exist so the user can
+     * opt out of the service appearing by itself, not because opting out is the norm.
+     *
+     * Note there is no "and start it right now" side-effect when a switch is flipped on:
+     * these describe what should happen on the *next* boot / controller connection, and
+     * quietly starting the service on a settings change would be surprising.
+     */
+    private fun setupAutoStartSwitches() {
+        binding.switchAutoStartOnBoot?.let { sw ->
+            sw.isChecked = Prefs.getAutoStartOnBoot(this)
+            sw.setOnCheckedChangeListener { _, checked ->
+                Prefs.setAutoStartOnBoot(this, checked)
+                log("Auto-start after reboot: ${if (checked) "on" else "off"}")
+            }
+        }
+        binding.switchAutoStartOnConnect?.let { sw ->
+            sw.isChecked = Prefs.getAutoStartOnControllerConnect(this)
+            sw.setOnCheckedChangeListener { _, checked ->
+                Prefs.setAutoStartOnControllerConnect(this, checked)
+                log("Auto-start on controller connect: ${if (checked) "on" else "off"}")
+            }
+        }
+    }
+
     private fun openGithubRepo() {
         try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(githubRepoUrl)))
@@ -635,6 +661,9 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Select a paired Bluetooth device first", Toast.LENGTH_LONG).show()
             return
         }
+        // An explicit Start re-arms auto-start: whatever made the user stop it last time,
+        // they've changed their mind.
+        Prefs.setUserStoppedService(this, false)
         val intent = Intent(this, ControllerService::class.java)
         startForegroundService(intent)
         serviceRunning = true
@@ -675,6 +704,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startControllerService(device: UsbDevice) {
+        Prefs.setUserStoppedService(this, false)  // see startBluetoothService
         val intent = Intent(this, ControllerService::class.java).apply {
             putExtra(ControllerService.EXTRA_DEVICE, device)
         }

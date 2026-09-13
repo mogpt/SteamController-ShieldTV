@@ -52,6 +52,10 @@ object Prefs {
 
     private const val KEY_SAVED_SHOW_IME_HARD_KB = "saved_show_ime_with_hard_keyboard"
 
+    private const val KEY_AUTOSTART_ON_BOOT    = "autostart_on_boot"
+    private const val KEY_AUTOSTART_ON_CONNECT = "autostart_on_controller_connect"
+    private const val KEY_USER_STOPPED_SERVICE = "user_stopped_service"
+
     private fun prefs(context: Context) =
         context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
@@ -363,5 +367,45 @@ object Prefs {
 
     fun clearSavedShowImeHardKeyboard(context: Context) {
         prefs(context).edit().remove(KEY_SAVED_SHOW_IME_HARD_KB).apply()
+    }
+
+    // ─── Auto-start ────────────────────────────────────────────────────────────
+    // Both default ON: the whole point of the app is that the controller "just works",
+    // and having to open the UI and press Start on every single boot / power-on is the
+    // single biggest friction point. Users who prefer manual control can switch them off.
+
+    /** Start the controller service after the device finishes booting. */
+    fun getAutoStartOnBoot(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_AUTOSTART_ON_BOOT, true)
+
+    fun setAutoStartOnBoot(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_AUTOSTART_ON_BOOT, enabled).apply()
+    }
+
+    /** Start the controller service when the paired controller connects over Bluetooth. */
+    fun getAutoStartOnControllerConnect(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_AUTOSTART_ON_CONNECT, true)
+
+    fun setAutoStartOnControllerConnect(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_AUTOSTART_ON_CONNECT, enabled).apply()
+    }
+
+    /**
+     * Sticky record of a deliberate Stop (the UI button or the notification action).
+     *
+     * Auto-start must not fight the user. Without this flag, stopping the service and
+     * then power-cycling the controller — which is exactly what someone does when they
+     * want the controller to behave as a plain Bluetooth device again — would silently
+     * restart the service behind their back, and there'd be no way to stay stopped short
+     * of turning the preference off entirely.
+     *
+     * Cleared by an explicit Start, and by a reboot (a fresh boot is a fresh session; a
+     * Stop from three days ago should not still be suppressing auto-start).
+     */
+    fun getUserStoppedService(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_USER_STOPPED_SERVICE, false)
+
+    fun setUserStoppedService(context: Context, stopped: Boolean) {
+        prefs(context).edit().putBoolean(KEY_USER_STOPPED_SERVICE, stopped).apply()
     }
 }

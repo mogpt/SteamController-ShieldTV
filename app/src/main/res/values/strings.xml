@@ -179,4 +179,12 @@
     <string name="calib_gyro_sensitivity">Gyro sensitivity</string>
     <string name="calib_gyro_invert_y">Invert gyro Y</string>
     <string name="calib_gyro_activation">Activation</string>
+
+    <!-- Auto-start -->
+    <string name="main_autostart_label">AUTO-START</string>
+    <string name="main_autostart_on_boot">Start after reboot</string>
+    <string name="main_autostart_on_connect">Start when controller connects</string>
+    <string name="autostart_channel_name">Auto-start</string>
+    <string name="autostart_shizuku_advisory_title">Controller auto-start skipped</string>
+    <string name="autostart_shizuku_advisory_text">Shizuku is not running, so the virtual gamepad cannot be created. Start Shizuku, then open Steam Controller.</string>
 </resources>

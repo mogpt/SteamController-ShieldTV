@@ -43,6 +43,18 @@ class ControllerService : Service() {
         const val ACTION_TEST_RUMBLE = "com.steamcontroller.android.TEST_RUMBLE"
         private const val TEST_RUMBLE_DURATION_MS = 5000L
 
+        /**
+         * Whether an instance is alive right now.
+         *
+         * AutoStartReceiver needs a "don't double-start" gate, and none of the existing
+         * flows answer that question: modeFlow sits at NONE for the first second or two of
+         * every start (transport init + Shizuku bind are async), so a second ACL_CONNECTED
+         * broadcast arriving in that window would look like "nothing is running" and fire a
+         * second start. The receiver runs in this same process, so a plain static is enough.
+         */
+        @Volatile var isRunning: Boolean = false
+            private set
+
         // Observed by DebugActivity / MainActivity for live display
         private val _stateFlow = MutableStateFlow<SteamControllerState?>(null)
         val stateFlow: StateFlow<SteamControllerState?> = _stateFlow.asStateFlow()
@@ -159,6 +171,7 @@ class ControllerService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        isRunning = true
         usbManager = UsbConnectionManager(this)
         btManager = BluetoothHidManager(this)
         uinput = UInputGamepad(this, Prefs.getProfile(this))
@@ -338,6 +351,11 @@ class ControllerService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            // Disarm auto-start. ACTION_STOP only ever arrives from a deliberate human act
+            // (the Stop button, or the notification's Cancel action) — an internal give-up
+            // such as a failed transport init calls stopSelf() directly and must not count,
+            // or one bad start would leave auto-start permanently disabled.
+            Prefs.setUserStoppedService(this, true)
             stopSelf()
             return START_NOT_STICKY
         }
@@ -704,6 +722,7 @@ class ControllerService : Service() {
         //
         // 2. The USB read loop was still in bulkTransfer() when usbManager.disconnect() closed
         //    the connection underneath it. Stop the reader first, then tear the transport down.
+        isRunning = false
         releaseWakeLock()
         reader?.stop()
         scope.cancel()

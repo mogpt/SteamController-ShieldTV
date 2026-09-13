@@ -16,6 +16,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Auto-start the controller service after a reboot (see AutoStartReceiver). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!-- Update checker: fetch latest GitHub release + download/install the signed APK. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -103,6 +106,25 @@
             android:name=".service.ControllerService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+
+        <!-- Auto-start triggers. Both actions are protected broadcasts the system alone can
+             send, and both are on the platform's implicit-broadcast / background-FGS-start
+             exemption lists, so a manifest receiver still gets them on modern Android.
+             android:exported must be true: these are delivered by the system, which is a
+             different app as far as the export rules are concerned. -->
+        <receiver
+            android:name=".service.AutoStartReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
