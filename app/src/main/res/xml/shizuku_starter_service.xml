@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Config for ShizukuStarterService.
+
+    packageNames is the important line: it restricts event delivery to Shizuku alone, so the
+    service is structurally incapable of observing anything else on the device even while it
+    is enabled. canRetrieveWindowContent is required to read Shizuku's node tree and call
+    ACTION_CLICK on the Start button; no other capability is requested — no gesture
+    dispatch, no key-event filtering, no flagRetrieveInteractiveWindows.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/shizuku_starter_service_description"
+    android:notificationTimeout="100"
+    android:packageNames="moe.shizuku.privileged.api"
+    android:summary="@string/shizuku_starter_service_summary" />

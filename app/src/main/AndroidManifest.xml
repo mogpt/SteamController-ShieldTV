@@ -125,6 +125,24 @@
                 <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
             </intent-filter>
         </receiver>
+        <!-- Presses Shizuku's "Start" button on the user's behalf.
+             On Android TV that button cannot be reached with a D-pad (Shizuku wraps it in a
+             focusable MaterialCardView that blocks descendant focus), and Shizuku exports no
+             component that performs the start, so without this the app is unusable after
+             every reboot unless a mouse is plugged into the TV. Scoped to Shizuku's package
+             only — see res/xml/shizuku_starter_service.xml. -->
+        <service
+            android:name=".shizuku.ShizukuStarterService"
+            android:exported="false"
+            android:label="@string/shizuku_starter_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/shizuku_starter_service" />
+        </service>
 
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
