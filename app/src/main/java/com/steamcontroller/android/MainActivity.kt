@@ -158,7 +158,6 @@ class MainActivity : AppCompatActivity() {
         setupTransportDropdown()
         setupControlModeToggle()
         setupGamepadVariantRadios()
-        setupAutoStartSwitches()
         requestNotificationPermissionIfNeeded()
 
         binding.btnRefreshBt.setOnClickListener {
@@ -526,22 +525,6 @@ class MainActivity : AppCompatActivity() {
      * these describe what should happen on the *next* boot / controller connection, and
      * quietly starting the service on a settings change would be surprising.
      */
-    private fun setupAutoStartSwitches() {
-        binding.switchAutoStartOnBoot?.let { sw ->
-            sw.isChecked = Prefs.getAutoStartOnBoot(this)
-            sw.setOnCheckedChangeListener { _, checked ->
-                Prefs.setAutoStartOnBoot(this, checked)
-                log("Auto-start after reboot: ${if (checked) "on" else "off"}")
-            }
-        }
-        binding.switchAutoStartOnConnect?.let { sw ->
-            sw.isChecked = Prefs.getAutoStartOnControllerConnect(this)
-            sw.setOnCheckedChangeListener { _, checked ->
-                Prefs.setAutoStartOnControllerConnect(this, checked)
-                log("Auto-start on controller connect: ${if (checked) "on" else "off"}")
-            }
-        }
-    }
 
     private fun openGithubRepo() {
         try {

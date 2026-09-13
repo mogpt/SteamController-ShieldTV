@@ -72,6 +72,19 @@ class CalibrationActivity : AppCompatActivity() {
             Prefs.setMouseSensitivity(this, value)
         })
 
+        // ── Auto-start ───────────────────────────────────────────────────────
+        // These live here rather than on the main screen: they are set-once options, and on
+        // the main screen the card pushed Start Service and the shortcut row off the bottom
+        // of a 1080p TV, which has no scrollbar to hint that anything is below the fold.
+        binding.switchAutoStartOnBoot.isChecked = Prefs.getAutoStartOnBoot(this)
+        binding.switchAutoStartOnBoot.setOnCheckedChangeListener { _, checked ->
+            Prefs.setAutoStartOnBoot(this, checked)
+        }
+        binding.switchAutoStartOnConnect.isChecked = Prefs.getAutoStartOnControllerConnect(this)
+        binding.switchAutoStartOnConnect.setOnCheckedChangeListener { _, checked ->
+            Prefs.setAutoStartOnControllerConnect(this, checked)
+        }
+
         // ── Gyro aiming ──────────────────────────────────────────────────────
         // All of these are re-read by UInputGamepad on its 250ms pref refresh, so they take
         // effect without restarting the service — you can tune sensitivity while aiming.

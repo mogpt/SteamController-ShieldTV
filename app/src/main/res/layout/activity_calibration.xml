@@ -448,6 +448,39 @@
                         android:text="@string/calib_trackpad_switch_label"
                         android:textColor="?attr/colorOnSurface"
                         android:textSize="14sp" />
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="12dp"
+                        android:layout_marginBottom="10dp"
+                        android:background="?attr/colorOutline" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="6dp"
+                        android:letterSpacing="0.1"
+                        android:text="@string/main_autostart_label"
+                        android:textColor="?attr/colorPrimary"
+                        android:textSize="12sp" />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/switchAutoStartOnBoot"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="34dp"
+                        android:text="@string/main_autostart_on_boot"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="13sp" />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/switchAutoStartOnConnect"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="34dp"
+                        android:text="@string/main_autostart_on_connect"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="13sp" />
 
                     <TextView
                         android:layout_width="match_parent"
