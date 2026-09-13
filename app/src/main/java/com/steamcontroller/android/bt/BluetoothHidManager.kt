@@ -93,6 +93,9 @@ class BluetoothHidManager(private val context: Context) {
     private val BATTERY_POLL_BUSY_RETRY_MS = 750L
     /** Grace period before the first read, so it doesn't race the disable-lizard write. */
     private val BATTERY_POLL_FIRST_DELAY_MS = 500L
+    /** Consecutive refusals after which the fast retry stops (see the poll runnable). */
+    private val MAX_BUSY_READ_RETRIES = 3
+    private var consecutiveBusyReads = 0
     private var batteryPollRunnable: Runnable? = null
 
     /** Run subscribeNext after [delayMs], reusing the timeout slot so it is cancellable. */
@@ -146,13 +149,31 @@ class BluetoothHidManager(private val context: Context) {
                 val ok = try { g.readCharacteristic(ch) } catch (t: Throwable) {
                     Log.w(TAG, "Battery read threw: ${t.message}"); false
                 }
-                // A false here means the stack had another operation outstanding (most
-                // likely the 800ms heartbeat write). Come back shortly rather than waiting
-                // out the full interval — otherwise a steady collision could starve the
-                // read indefinitely and leave the UI on "—" while looking healthy.
+                if (ok) {
+                    consecutiveBusyReads = 0
+                    subsHandler.postDelayed(this, BATTERY_POLL_INTERVAL_MS)
+                    return
+                }
+                // A false usually means the stack had another operation outstanding — most
+                // likely the 800ms heartbeat write — so a quick retry is worth it rather
+                // than waiting out the whole interval and leaving the UI on "—".
+                //
+                // But "busy" can also be permanent. On a connection where the first CCCD
+                // write is accepted and never completes, Android's GATT queue stays wedged
+                // for the life of the link and EVERY operation is refused from then on
+                // (confirmed on hardware: writeDescriptor, writeCharacteristic and this
+                // read all return false together). Retrying at 750ms forever in that state
+                // buys nothing and keeps poking a queue the heartbeat also needs, so give
+                // up after a few tries and drop back to the normal interval.
+                consecutiveBusyReads++
+                if (consecutiveBusyReads == MAX_BUSY_READ_RETRIES) {
+                    Log.w(TAG, "Battery read refused $consecutiveBusyReads times — " +
+                        "GATT queue looks wedged; backing off to the normal interval")
+                }
                 subsHandler.postDelayed(
                     this,
-                    if (ok) BATTERY_POLL_INTERVAL_MS else BATTERY_POLL_BUSY_RETRY_MS,
+                    if (consecutiveBusyReads < MAX_BUSY_READ_RETRIES) BATTERY_POLL_BUSY_RETRY_MS
+                    else BATTERY_POLL_INTERVAL_MS,
                 )
             }
         }
@@ -166,6 +187,7 @@ class BluetoothHidManager(private val context: Context) {
     private fun stopBatteryPolling() {
         batteryPollRunnable?.let { subsHandler.removeCallbacks(it) }
         batteryPollRunnable = null
+        consecutiveBusyReads = 0
     }
 
     @Volatile private var state: State = State.IDLE
