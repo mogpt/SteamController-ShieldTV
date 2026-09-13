@@ -13,6 +13,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.widget.ArrayAdapter
@@ -29,6 +30,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.steamcontroller.android.bt.BluetoothHidManager
 import com.steamcontroller.android.databinding.ActivityMainBinding
 import com.steamcontroller.android.service.ControllerService
+import com.steamcontroller.android.shizuku.ShizukuStarterService
 import com.steamcontroller.android.uinput.GamepadProfile
 import com.steamcontroller.android.update.UpdateChecker
 import com.steamcontroller.android.update.UpdateInstaller
@@ -94,6 +96,9 @@ class MainActivity : AppCompatActivity() {
 
     private val shizukuRequestCode = 1001
     private val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
+    // Android TV answers a number of phone-only Settings deep links with this stub package,
+    // which just shows "not supported" and finishes. Treat it as "did not resolve".
+    private val TV_SETTINGS_STUB_PACKAGE = "com.google.android.tv.frameworkpackagestubs"
 
     private val shizukuPermissionListener = Shizuku.OnRequestPermissionResultListener { _, grantResult ->
         if (grantResult == android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -163,7 +168,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnHelp.setOnClickListener { showConnectionHelpDialog() }
         binding.btnGithub.setOnClickListener { openGithubRepo() }
         binding.btnInstallShizuku.setOnClickListener {
-            if (isShizukuInstalled()) openShizukuApp() else openShizukuInstall()
+            if (isShizukuInstalled()) startShizukuService() else openShizukuInstall()
         }
         binding.btnCheckUpdate.setOnClickListener { checkForUpdates(manual = true) }
 
@@ -720,7 +725,15 @@ class MainActivity : AppCompatActivity() {
                 binding.btnInstallShizuku.visibility = View.VISIBLE
             }
             else -> {
-                binding.btnInstallShizuku.setText(R.string.main_open_shizuku)
+                // Wording follows what the button will actually achieve. With the starter
+                // accessibility service enabled it really does start the service; without
+                // it, all we can honestly promise is to put Shizuku on screen.
+                binding.btnInstallShizuku.setText(
+                    if (ShizukuStarterService.isEnabledInSettings(this))
+                        R.string.main_start_shizuku
+                    else
+                        R.string.main_open_shizuku
+                )
                 // The download arrow belongs to the install action; nothing is being
                 // downloaded when the app is already present.
                 binding.btnInstallShizuku.icon = null
@@ -748,6 +761,81 @@ class MainActivity : AppCompatActivity() {
             log("Opened Shizuku")
         } catch (t: Throwable) {
             Toast.makeText(this, getString(R.string.main_shizuku_open_failed), Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /**
+     * The remote-only path to a running Shizuku service.
+     *
+     * Shizuku's "Start" button is unreachable with a D-pad — its MaterialCardView takes the
+     * focus and blocks descendants — and Shizuku exports no component that performs the
+     * start, so there is nothing we can simply `startActivity` into. The one route that
+     * needs no shell privilege (and shell privilege is exactly what is missing at this
+     * point) is an accessibility service pressing the button for us.
+     *
+     * If the helper is enabled we arm it and open Shizuku; the click lands a moment later.
+     * If it is not, we explain the trade-off and offer the Accessibility settings screen,
+     * which *is* fully navigable with a remote — plus an escape hatch for anyone who would
+     * rather plug in a mouse than grant accessibility.
+     */
+    private fun startShizukuService() {
+        if (!ShizukuStarterService.isEnabledInSettings(this)) {
+            promptEnableShizukuStarter()
+            return
+        }
+        ShizukuStarterService.arm()
+        Toast.makeText(this, getString(R.string.shizuku_starter_armed), Toast.LENGTH_SHORT).show()
+        log("Armed Shizuku starter, opening Shizuku")
+        openShizukuApp()
+    }
+
+    private fun promptEnableShizukuStarter() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.shizuku_starter_prompt_title)
+            .setMessage(R.string.shizuku_starter_prompt_message)
+            .setPositiveButton(R.string.shizuku_starter_prompt_open_settings) { _, _ ->
+                openAccessibilitySettings()
+            }
+            // Deliberately still offered: the accessibility grant is broad, and a user with
+            // a mouse to hand loses nothing by declining it.
+            .setNeutralButton(R.string.shizuku_starter_prompt_open_shizuku) { _, _ ->
+                openShizukuApp()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /**
+     * Open the Accessibility settings screen, or the closest thing the device has.
+     *
+     * On Android TV `ACTION_ACCESSIBILITY_SETTINGS` is a trap: it *resolves*, but only to
+     * `com.google.android.tv.frameworkpackagestubs`, a stub activity that shows "not
+     * supported" and finishes — so a plain startActivity looks like nothing happened at all.
+     * TV Settings has no exported accessibility activity to target directly either; the
+     * screen exists only as a fragment inside the root Settings activity. So when the deep
+     * link would land on the stub we open the Settings root instead and tell the user the
+     * three steps to get there, which are all plain D-pad moves.
+     */
+    private fun openAccessibilitySettings() {
+        val direct = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        val resolvedPackage = direct.resolveActivity(packageManager)?.packageName
+        val useDirect = resolvedPackage != null && resolvedPackage != TV_SETTINGS_STUB_PACKAGE
+
+        try {
+            startActivity(if (useDirect) direct else Intent(Settings.ACTION_SETTINGS))
+            if (!useDirect) {
+                Toast.makeText(
+                    this,
+                    getString(R.string.shizuku_starter_settings_path),
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        } catch (_: Throwable) {
+            Toast.makeText(
+                this,
+                getString(R.string.shizuku_starter_settings_failed),
+                Toast.LENGTH_LONG,
+            ).show()
         }
     }
 

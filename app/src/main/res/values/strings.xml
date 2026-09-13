@@ -174,6 +174,19 @@
     <string name="main_shizuku_open_failed">Could not open Shizuku.</string>
     <string name="main_shizuku_missing">Shizuku is not installed — it is required</string>
     <string name="main_shizuku_store_failed">Could not open a store. Install Shizuku manually from GitHub.</string>
+
+    <!-- Remote-only Shizuku start (see ShizukuStarterService). -->
+    <string name="main_start_shizuku">Start Shizuku service</string>
+    <string name="shizuku_starter_service_label">Steam Controller — Shizuku starter</string>
+    <string name="shizuku_starter_service_summary">Presses Shizuku\'s Start button for you, so a TV remote is enough.</string>
+    <string name="shizuku_starter_service_description">Shizuku\'s Start button cannot be reached with a TV remote — its D-pad focus skips over it. With this enabled, the Steam Controller app can press that one button for you. It only ever sees the Shizuku app, and only acts in the few seconds after you tap “Start Shizuku service”.</string>
+    <string name="shizuku_starter_prompt_title">Let the app press Start for you</string>
+    <string name="shizuku_starter_prompt_message">Shizuku\'s “Start” button cannot be selected with a TV remote, so it normally needs a mouse.\n\nEnable “Steam Controller — Shizuku starter” under Accessibility and this app will press it for you. It is restricted to the Shizuku app and only acts for a few seconds after you ask it to.\n\nYou only have to enable it once.</string>
+    <string name="shizuku_starter_prompt_open_settings">Open Accessibility settings</string>
+    <string name="shizuku_starter_prompt_open_shizuku">Just open Shizuku</string>
+    <string name="shizuku_starter_armed">Opening Shizuku and pressing Start…</string>
+    <string name="shizuku_starter_settings_failed">Could not open Accessibility settings.</string>
+    <string name="shizuku_starter_settings_path">Go to Device Preferences → Accessibility → Steam Controller — Shizuku starter</string>
     <string name="calib_gyro_header">GYRO AIMING</string>
     <string name="calib_gyro_enable">Enable gyro aiming</string>
     <string name="calib_gyro_sensitivity">Gyro sensitivity</string>
