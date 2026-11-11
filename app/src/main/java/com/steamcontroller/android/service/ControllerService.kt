@@ -111,7 +111,13 @@ class ControllerService : Service() {
     // amount of real time per transport (USB ~333Hz, BLE ~60-100Hz), so the old fixed
     // 3-frame rule was ~9ms over USB but could exceed 30ms over Bluetooth — perceptible.
     // A time window gives identical, bounded latency on both links.
-    private val DEBOUNCE_MS = 12L
+    //
+    // Now zero: over BLE reports arrive ~12 ms apart (83 Hz measured on the SHIELD), so even
+    // a 12 ms window meant waiting one or two further reports — 12-24 ms added to every
+    // button press, on top of the link's own interval and clearly felt next to a DualSense.
+    // The controller debounces its own switches before reporting. Raise this only if
+    // double presses show up.
+    private val DEBOUNCE_MS = 0L
 
     // Display-only flow throttle — see onHidFrame.
     private val UI_FLOW_INTERVAL_MS = 33L
@@ -662,16 +668,16 @@ class ControllerService : Service() {
         // produced an empty key list — i.e. the fallback injection path never sent a single
         // button press, only axes.
         val previousConfirmed = confirmedState!!
-        if (injectableBits == pendingButtons) {
-            buttonsConfirmedThisFrame =
-                (now - pendingSinceMs) >= DEBOUNCE_MS &&
-                injectableBits != (previousConfirmed.buttons and INJECTABLE_MASK)
-            if (buttonsConfirmedThisFrame) confirmedState = state
-        } else {
+        if (injectableBits != pendingButtons) {
             pendingButtons = injectableBits
             pendingSinceMs = now
-            buttonsConfirmedThisFrame = false
         }
+        // Evaluated on the frame that brings the change too, so a zero window confirms
+        // immediately instead of always waiting for the next report.
+        buttonsConfirmedThisFrame =
+            (now - pendingSinceMs) >= DEBOUNCE_MS &&
+            injectableBits != (previousConfirmed.buttons and INJECTABLE_MASK)
+        if (buttonsConfirmedThisFrame) confirmedState = state
 
         when (mode) {
             InjectionMode.UINPUT -> {
