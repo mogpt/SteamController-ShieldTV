@@ -12,6 +12,7 @@ import android.util.Log
 import com.steamcontroller.android.Prefs
 import com.steamcontroller.android.R
 import com.steamcontroller.android.Transport
+import com.steamcontroller.android.shizuku.LocalAdbStarter
 import rikka.shizuku.Shizuku
 
 /**
@@ -47,6 +48,12 @@ class AutoStartReceiver : BroadcastReceiver() {
         private const val ADVISORY_COOLDOWN_MS = 60_000L
 
         @Volatile private var lastAdvisoryAtMs = 0L
+
+        /**
+         * Budget for starting Shizuku over local adb from a broadcast. A healthy start takes
+         * about three seconds on the SHIELD; this stays inside the 10 s a receiver is allowed.
+         */
+        private const val ADB_START_BUDGET_MS = 6_000L
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -66,6 +73,11 @@ class AutoStartReceiver : BroadcastReceiver() {
 
         if (!Prefs.getAutoStartOnBoot(context)) {
             Log.i(TAG, "Boot auto-start disabled by preference")
+            // Still bring Shizuku up now, so that turning the controller on later starts
+            // the service at once instead of paying for the Shizuku start then.
+            if (Prefs.getAutoStartOnControllerConnect(context) && !isShizukuReady()) {
+                inBackground { LocalAdbStarter.start(context.applicationContext, ADB_START_BUDGET_MS, interactive = false) }
+            }
             return
         }
         Log.i(TAG, "BOOT_COMPLETED — attempting auto-start")
@@ -121,16 +133,31 @@ class AutoStartReceiver : BroadcastReceiver() {
             Log.i(TAG, "Auto-start ($reason) skipped: service already running")
             return
         }
-        if (!isShizukuReady()) {
-            // Expected on every boot: Shizuku is itself an app that needs a shell-privileged
-            // start (wireless debugging / adb), so it is never up when BOOT_COMPLETED fires.
-            // Starting the service anyway would just park a useless foreground notification
-            // and a wake lock with no uinput device behind it, so don't — say so once instead.
-            Log.w(TAG, "Auto-start ($reason) skipped: Shizuku is not ready")
-            postShizukuAdvisory(context)
+        if (isShizukuReady()) {
+            startService(context, reason)
             return
         }
 
+        // Expected after every reboot: Shizuku does not survive one. Try to bring it back
+        // through the device's own adbd before giving up — see LocalAdbStarter. That blocks
+        // for a few seconds, so it runs off the main thread with the broadcast held open.
+        val appContext = context.applicationContext
+        inBackground {
+            val result = LocalAdbStarter.start(appContext, ADB_START_BUDGET_MS, interactive = false)
+            if (result == LocalAdbStarter.Result.STARTED && isShizukuReady()) {
+                Log.i(TAG, "Auto-start ($reason): started Shizuku over local adb")
+                startService(appContext, reason)
+            } else {
+                // Starting the service anyway would just park a useless foreground
+                // notification and a wake lock with no uinput device behind it, so
+                // don't — say so once instead.
+                Log.w(TAG, "Auto-start ($reason) skipped: Shizuku is not ready ($result)")
+                postShizukuAdvisory(appContext)
+            }
+        }
+    }
+
+    private fun startService(context: Context, reason: String) {
         try {
             context.startForegroundService(Intent(context, ControllerService::class.java))
             Log.i(TAG, "Auto-start ($reason): service start requested")
@@ -141,6 +168,20 @@ class AutoStartReceiver : BroadcastReceiver() {
             // auto-start is not a reason to crash the user's boot.
             Log.e(TAG, "Auto-start ($reason) failed: ${t.message}")
         }
+    }
+
+    /** Run [block] on a worker thread while keeping this broadcast (and the process) alive. */
+    private fun inBackground(block: () -> Unit) {
+        val pending = goAsync()
+        Thread({
+            try {
+                block()
+            } catch (t: Throwable) {
+                Log.e(TAG, "Background auto-start work failed", t)
+            } finally {
+                pending.finish()
+            }
+        }, "autostart-adb").start()
     }
 
     private fun isShizukuReady(): Boolean = try {

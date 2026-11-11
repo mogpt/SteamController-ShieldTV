@@ -246,7 +246,7 @@ You can tweak everything live — most changes apply within ~250 ms (next mappin
 - **Trackpads**: usable as a mouse (Desktop mode, or as an optional sidecar cursor alongside a gamepad profile). Not yet exposed as a DualShock 4/DualSense touchpad to games that support one natively.
 - **Gyroscope** (quaternion IMU) is parsed but not yet routed anywhere. Gyro aiming is planned for a future release, fits best with the DualShock 4 / DualSense profiles.
 - **Bluetooth auto-reconnect**: if the controller powers off, the app does not retry the GATT connection.
-- **Shizuku at reboot**: the user must restart Shizuku after each reboot of the device (an Android limitation, not the app's).
+- **Shizuku at reboot**: on the SHIELD (or any device with network debugging left on) the app restarts Shizuku itself through the device's own adb port, after a one-time "Always allow" prompt the first time the app is opened. Elsewhere Shizuku still has to be restarted by hand after each reboot.
 
 ## Roadmap
 

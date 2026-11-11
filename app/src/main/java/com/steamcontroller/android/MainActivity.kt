@@ -30,6 +30,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.steamcontroller.android.bt.BluetoothHidManager
 import com.steamcontroller.android.databinding.ActivityMainBinding
 import com.steamcontroller.android.service.ControllerService
+import com.steamcontroller.android.shizuku.LocalAdbStarter
 import com.steamcontroller.android.shizuku.ShizukuStarterService
 import com.steamcontroller.android.uinput.GamepadProfile
 import com.steamcontroller.android.update.UpdateChecker
@@ -96,6 +97,9 @@ class MainActivity : AppCompatActivity() {
 
     private val shizukuRequestCode = 1001
     private val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
+    /** Long enough to read and accept the system "Allow debugging?" dialog with a remote. */
+    private val LOCAL_ADB_UI_BUDGET_MS = 90_000L
+    private var localAdbProbeDone = false
     // Android TV answers a number of phone-only Settings deep links with this stub package,
     // which just shows "not supported" and finishes. Treat it as "did not resolve".
     private val TV_SETTINGS_STUB_PACKAGE = "com.google.android.tv.frameworkpackagestubs"
@@ -792,6 +796,25 @@ class MainActivity : AppCompatActivity() {
      * rather plug in a mouse than grant accessibility.
      */
     private fun startShizukuService() {
+        // First choice: start it ourselves through the device's own adbd. Works wherever
+        // network debugging is on (the SHIELD keeps it on across reboots) and needs nothing
+        // from the user beyond accepting this app's adb key the first time.
+        Toast.makeText(this, getString(R.string.shizuku_local_adb_trying), Toast.LENGTH_LONG).show()
+        Thread({
+            val result = LocalAdbStarter.start(applicationContext, LOCAL_ADB_UI_BUDGET_MS, interactive = true)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                log("Local adb Shizuku start: $result")
+                if (result == LocalAdbStarter.Result.STARTED) {
+                    checkPermissionsAndStart()
+                } else {
+                    startShizukuViaAccessibility()
+                }
+            }
+        }, "shizuku-local-adb").start()
+    }
+
+    private fun startShizukuViaAccessibility() {
         if (!ShizukuStarterService.isEnabledInSettings(this)) {
             promptEnableShizukuStarter()
             return
@@ -915,8 +938,31 @@ class MainActivity : AppCompatActivity() {
         binding.tvLog.text = (lines + msg).joinToString("\n")
     }
 
+    /**
+     * Get this app's adb key approved while the user is here to approve it.
+     *
+     * Auto-start after a reboot depends on that approval, and the background path is not
+     * allowed to ask for it (see [LocalAdbStarter.isAuthorized]). Asked once per visit, and
+     * only where adbd is actually listening — elsewhere the connect is refused instantly
+     * and nothing is shown.
+     */
+    private fun probeLocalAdbOnce() {
+        if (localAdbProbeDone || LocalAdbStarter.isAuthorized(this)) return
+        localAdbProbeDone = true
+        Thread({
+            val result = LocalAdbStarter.start(applicationContext, LOCAL_ADB_UI_BUDGET_MS, interactive = true)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                log("Local adb authorization: $result")
+                updateShizukuStatus(Shizuku.pingBinder() &&
+                    Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED)
+            }
+        }, "local-adb-probe").start()
+    }
+
     override fun onResume() {
         super.onResume()
+        probeLocalAdbOnce()
         updateShizukuStatus(Shizuku.pingBinder() &&
             Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED)
 

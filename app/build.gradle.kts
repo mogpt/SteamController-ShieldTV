@@ -100,4 +100,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     // repeatOnLifecycle: lifecycleScope alone resolved transitively, this artifact does not.
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    // adb client, used to start Shizuku through the device's own adbd (LocalAdbStarter).
+    implementation(libs.dadb)
 }

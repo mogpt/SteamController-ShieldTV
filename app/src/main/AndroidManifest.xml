@@ -40,6 +40,8 @@
 
     <!-- Needed so installed-apps query (AppPickerActivity) sees launcher apps on Android 11+. -->
     <queries>
+        <!-- LocalAdbStarter needs Shizuku's install path to run its starter binary. -->
+        <package android:name="moe.shizuku.privileged.api" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
