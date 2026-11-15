@@ -395,9 +395,19 @@ class ControllerService : Service() {
             intent?.getParcelableExtra(EXTRA_DEVICE)
         }
 
-        scope.launch { initialize(device) }
+        // One initialisation per service instance. Start commands can arrive in pairs — the
+        // uinput helper's revive broadcast and Android's own restart of a killed service
+        // land within a second of each other — and running initialize() twice opened a
+        // second GATT connection and a second frame pipeline onto the same virtual gamepad.
+        if (initStarted.compareAndSet(false, true)) {
+            scope.launch { initialize(device) }
+        } else {
+            Log.i(TAG, "Start command ignored: already initialised")
+        }
         return START_STICKY
     }
+
+    private val initStarted = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private suspend fun initialize(device: UsbDevice?) {
         val transport = Prefs.getTransport(this@ControllerService)

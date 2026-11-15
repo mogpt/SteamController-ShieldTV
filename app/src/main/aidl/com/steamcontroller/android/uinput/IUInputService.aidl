@@ -29,4 +29,9 @@ interface IUInputService {
     String runShellCommandForOutput(in String[] cmd);
 
     void destroy();
+
+    // Hand the helper a binder owned by the client process. The helper links to its death,
+    // so it learns the instant the app is killed and can bring it back. Kept last so the
+    // transaction ids above never shift.
+    void attachClient(IBinder token);
 }

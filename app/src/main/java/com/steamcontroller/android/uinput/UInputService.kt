@@ -20,6 +20,74 @@ class UInputService : IUInputService.Stub {
          * silence is an unambiguous signal that nobody is driving this device any more.
          */
         private const val CLIENT_TIMEOUT_MS = 15_000L
+
+        /** How long to keep the virtual devices alive waiting for a killed app to return. */
+        private const val REVIVE_WINDOW_MS = 30_000L
+        private const val REVIVE_RETRY_MS = 3_000L
+        private const val APP_PACKAGE = "com.steamcontroller.android"
+        const val ACTION_REVIVE = "com.steamcontroller.android.action.REVIVE"
+    }
+
+    /** Profile of the device currently registered with the kernel, or -1 for none. */
+    @Volatile private var createdProfile = -1
+    @Volatile private var clientToken: android.os.IBinder? = null
+    @Volatile private var clientAlive = false
+
+    /**
+     * The app process was killed out from under us — on the 2 GB SHIELD that is the low
+     * memory killer, several times an hour during a GeForce NOW session.
+     *
+     * Left alone, Android restarts the service on a back-off that grows with every kill
+     * (11 s, 31 s, 70 s observed), and the old helper tore its devices down meanwhile, so
+     * the game saw the controller vanish for over a minute. Instead:
+     *
+     *  - keep the virtual devices registered, so the game never sees a disconnect;
+     *  - send one neutral frame, because the last frame before the kill may have had a
+     *    stick deflected or a button down and nothing would ever release it;
+     *  - ask the app to come back right now. We run as uid shell, so we can deliver a
+     *    broadcast to its receiver, which starts the service without waiting for the
+     *    back-off. The returning client rebinds to this same instance (daemon mode) and
+     *    createGamepad() hands it the device that is already there.
+     */
+    private fun onClientDied(token: android.os.IBinder) {
+        if (clientToken !== token) return
+        clientAlive = false
+        Log.w(TAG, "Client process died — holding devices and reviving the app")
+        try {
+            UInputNative.sendFrame(0, 0, 0, 0, 0, 0, 0, 0, 0)
+            UInputNative.sendMouseFrame(0, 0, 0, 0)
+        } catch (t: Throwable) {
+            Log.w(TAG, "neutral frame failed: ${t.message}")
+        }
+        Thread({
+            val deadline = android.os.SystemClock.uptimeMillis() + REVIVE_WINDOW_MS
+            while (!clientAlive && android.os.SystemClock.uptimeMillis() < deadline) {
+                touch() // keep the idle watchdog out of this; the deadline here decides
+                runShellCommand(arrayOf(
+                    "am", "broadcast", "-a", ACTION_REVIVE,
+                    "-n", "$APP_PACKAGE/.service.AutoStartReceiver",
+                ))
+                try { Thread.sleep(REVIVE_RETRY_MS) } catch (_: InterruptedException) { return@Thread }
+            }
+            if (!clientAlive) {
+                Log.w(TAG, "App did not come back within ${REVIVE_WINDOW_MS}ms — destroying device and exiting")
+                destroy()
+            }
+        }, "uinput-revive").apply { isDaemon = true; start() }
+    }
+
+    override fun attachClient(token: android.os.IBinder?) {
+        touch()
+        if (token == null) return
+        clientToken = token
+        clientAlive = true
+        try {
+            token.linkToDeath({ onClientDied(token) }, 0)
+            Log.i(TAG, "Client attached")
+        } catch (_: android.os.RemoteException) {
+            // Already dead by the time we got here.
+            onClientDied(token)
+        }
     }
 
     @Volatile private var lastClientCallMs = android.os.SystemClock.uptimeMillis()
@@ -109,9 +177,16 @@ class UInputService : IUInputService.Stub {
         reapStaleInstances()
         touch()
         startWatchdog()
+        if (createdProfile == profileId) {
+            // A client returning after being killed. Recreating would make the game see the
+            // controller unplug and replug; the device it already has is still good.
+            Log.i(TAG, "Reusing existing virtual devices (profile=$profileId)")
+            return true
+        }
         return try {
-            UInputNative.createDevice(profileId)
+            UInputNative.createDevice(profileId).also { ok -> createdProfile = if (ok) profileId else -1 }
         } catch (t: Throwable) {
+            createdProfile = -1
             Log.e(TAG, "createDevice failed: ${t.message}")
             false
         }

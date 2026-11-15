@@ -63,6 +63,15 @@ class AutoStartReceiver : BroadcastReceiver() {
             "android.intent.action.QUICKBOOT_POWERON" -> onBoot(context)
 
             BluetoothDevice.ACTION_ACL_CONNECTED -> onAclConnected(context, intent)
+
+            // Sent by the uinput helper when this process was killed mid-session (see
+            // UInputService.onClientDied). Not gated on the auto-start preferences: the
+            // service was running a moment ago, this only puts it back. tryStart still
+            // honours a deliberate Stop.
+            com.steamcontroller.android.uinput.UInputService.ACTION_REVIVE -> {
+                Log.i(TAG, "Revive requested by the uinput helper")
+                tryStart(context, reason = "revive")
+            }
         }
     }
 

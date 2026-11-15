@@ -30,6 +30,14 @@ class UInputGamepad(private val context: Context, initialProfile: GamepadProfile
         // returns "null" as a string in that case) — restored by deleting the key, not by
         // writing the literal string "null".
         private const val SHOW_IME_UNSET_SENTINEL = "__unset__"
+
+        /** Changes whenever the APK is replaced, including same-versionCode dev installs. */
+        private fun helperVersion(context: Context): Int = try {
+            val info = context.packageManager.getPackageInfo(context.packageName, 0)
+            ((info.lastUpdateTime / 1000L) and 0x7FFFFFFF).toInt()
+        } catch (_: Throwable) {
+            1
+        }
     }
     private var service: IUInputService? = null
     private var bound = false
@@ -121,10 +129,20 @@ class UInputGamepad(private val context: Context, initialProfile: GamepadProfile
     private val args = Shizuku.UserServiceArgs(
         ComponentName(context.packageName, UInputService::class.java.name)
     )
-        .daemon(false)
+        // Daemon: the helper must outlive this process. When Android kills the app, the
+        // helper keeps the virtual gamepad registered and brings the app back (see
+        // UInputService.onClientDied); the restarted app then binds to that same instance.
+        // A non-daemon service is dropped from Shizuku's records the moment its client
+        // dies, so the new process could only ever get a fresh one.
+        .daemon(true)
         .processNameSuffix("uinput")
         .debuggable(false)
-        .version(1)
+        // Tied to the installed build, so an app update replaces a helper still running
+        // the previous build's code instead of binding to it.
+        .version(helperVersion(context))
+
+    /** Owned by this process; the helper links to its death to notice us being killed. */
+    private val clientToken = android.os.Binder()
 
     @Volatile private var deviceReady = false
 
@@ -136,6 +154,7 @@ class UInputGamepad(private val context: Context, initialProfile: GamepadProfile
             // Binder calls can block — do them off the main thread
             Thread {
                 try {
+                    svc.attachClient(clientToken)
                     if (svc.canCreateDevice()) {
                         val ok = svc.createGamepad(profile.id)
                         deviceReady = ok

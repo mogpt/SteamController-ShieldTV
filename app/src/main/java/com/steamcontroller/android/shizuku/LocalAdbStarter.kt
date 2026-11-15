@@ -37,6 +37,7 @@ object LocalAdbStarter {
     private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
     private const val DEFAULT_ADB_PORT = 5555
     private const val KEY_AUTHORIZED = "authorized"
+    private const val BINDER_GRACE_MS = 2_000L
 
     enum class Result {
         /** Shizuku's binder reached this process. */
@@ -77,6 +78,14 @@ object LocalAdbStarter {
      */
     fun start(context: Context, timeoutMs: Long, interactive: Boolean): Result = synchronized(lock) {
         val deadline = SystemClock.elapsedRealtime() + timeoutMs
+        // In a process that has only just started, a running Shizuku has not delivered its
+        // binder yet, and "no binder" looks exactly like "not running". Running the starter
+        // then would kill the live server — and with it the uinput helper that is holding
+        // the virtual gamepad for us. Give the binder a moment before believing it.
+        val binderGrace = SystemClock.elapsedRealtime() + BINDER_GRACE_MS
+        while (!Shizuku.pingBinder() && SystemClock.elapsedRealtime() < binderGrace) {
+            Thread.sleep(50)
+        }
         val shizukuUp = Shizuku.pingBinder()
         if (shizukuUp && isAuthorized(context)) return Result.STARTED
         if (!interactive && !isAuthorized(context)) return Result.NOT_AUTHORIZED
