@@ -36,7 +36,11 @@ object LocalAdbStarter {
     private const val TAG = "LocalAdbStarter"
     private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
     private const val DEFAULT_ADB_PORT = 5555
-    private const val KEY_AUTHORIZED = "authorized"
+    /**
+     * Renamed in 2.2.1: 2.2.0 could store `true` for a key adbd had never seen (see the probe
+     * in [start]). A fresh name makes every install prove its key again once.
+     */
+    private const val KEY_AUTHORIZED = "authorized_verified"
     private const val BINDER_GRACE_MS = 2_000L
 
     enum class Result {
@@ -108,7 +112,15 @@ object LocalAdbStarter {
         val socketTimeout = (deadline - SystemClock.elapsedRealtime()).coerceAtLeast(1000L).toInt()
         try {
             Dadb.create("127.0.0.1", port, keyPair, 2000, socketTimeout).use { adb ->
-                // Reaching here means adbd accepted the key.
+                // Dadb connects lazily: create() alone sends nothing, so the key is only
+                // proven approved once a command has actually round-tripped. Skipping this
+                // when Shizuku was already up marked a never-approved key as authorized,
+                // and the next reboot then failed in the background.
+                val probe = adb.shell("echo ok")
+                if (probe.exitCode != 0 || probe.output.trim() != "ok") {
+                    Log.w(TAG, "adb probe failed: exit=${probe.exitCode}")
+                    return Result.FAILED
+                }
                 prefs(context).edit().putBoolean(KEY_AUTHORIZED, true).apply()
                 if (shizukuUp) return Result.STARTED
                 val response = adb.shell(starter)
