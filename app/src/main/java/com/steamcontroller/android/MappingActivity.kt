@@ -37,6 +37,7 @@ class MappingActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMappingBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        com.steamcontroller.android.ui.TvFocus.install(this)
 
         binding.toolbar.setNavigationOnClickListener { finish() }
         binding.toolbar.setOnMenuItemClickListener { item ->
@@ -140,7 +141,7 @@ class MappingActivity : AppCompatActivity() {
                 dialog.dismiss()
             }
             .setNegativeButton(android.R.string.cancel) { d, _ -> d.dismiss() }
-            .show()
+            .show().also { com.steamcontroller.android.ui.TvFocus.install(it) }
     }
 
     /** Kenney SC icon for each source button. null → fall back to letter chip. */

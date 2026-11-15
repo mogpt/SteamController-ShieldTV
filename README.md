@@ -36,7 +36,11 @@ controller rather than injected key events.
 - **Plug and play after setup** — starts at boot and when the controller connects, restarts
   Shizuku by itself after a reboot, and recovers in about a second if Android kills the app
   for memory.
-- **Built for a TV** — everything is usable with the SHIELD remote.
+- **Auto-tune sticks** — a 20-second guided measurement with a live picture of both sticks
+  that sets the true centre, the smallest safe deadzone and full-output range for your
+  controller, so the sticks respond like raw DualSense input.
+- **Built for a TV** — a clear focus ring that glides between controls, and sliders that
+  only change when you press OK on them, so everything is easy with the SHIELD remote.
 
 ## Compatibility
 
@@ -165,6 +169,13 @@ to start Shizuku again after a reboot; the app offers a button and a notificatio
 
 ## Using it
 
+- **Auto-tune sticks (do this first).** Calibration → Auto-tune sticks. Let go of the
+  sticks, rotate both slowly around their edge three times, let go again, then Apply.
+  Sticks often rest a few percent off centre; the default 8% deadzone around the wrong
+  centre makes small movements feel dead in some directions. Auto-tune fixes both, from
+  measurements of your own controller.
+- **Sliders on a TV.** Moving left or right passes over a slider. Press OK on it to adjust
+  (the ring turns white), then OK again when done.
 - **Controller type.** Pick the emulated controller on the main screen. Xbox is the safest
   choice for GeForce NOW and most games. The notification has a button to cycle types
   without opening the app.
@@ -209,6 +220,10 @@ then Start Service. Recent versions wait long enough that this should not happen
 **GeForce NOW does not see the controller, or sees it as player 2.**
 Start the controller service before launching the game. If another gamepad is connected,
 turn it off so the virtual one is first.
+
+**The sticks feel less responsive than a DualSense, or uneven in some directions.**
+Run Calibration → Auto-tune sticks. Its report shows how far off centre each stick rests,
+how much it jitters, and how far it reaches, and sets the deadzone and range from that.
 
 **Button presses feel late or go missing.**
 Check the status card says `uinput`. Check Debug → report rate reads around 80 Hz over

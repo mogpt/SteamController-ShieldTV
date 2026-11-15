@@ -24,6 +24,7 @@ class DebugActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityDebugBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        com.steamcontroller.android.ui.TvFocus.install(this)
         binding.toolbar.setNavigationOnClickListener { finish() }
         binding.toolbar.setOnMenuItemClickListener { item ->
             if (item.itemId == R.id.action_log_to_file) {

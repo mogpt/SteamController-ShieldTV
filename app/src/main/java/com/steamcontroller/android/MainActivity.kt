@@ -119,6 +119,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        com.steamcontroller.android.ui.TvFocus.install(this)
 
         binding.tvSubtitle.text = "${binding.tvSubtitle.text} · v${BuildConfig.VERSION_NAME}"
 
@@ -415,7 +416,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.help_dialog_title)
             .setView(view)
             .setPositiveButton(android.R.string.ok, null)
-            .show()
+            .show().also { com.steamcontroller.android.ui.TvFocus.install(it) }
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -578,7 +579,7 @@ class MainActivity : AppCompatActivity() {
                 Prefs.setSkippedUpdateVersion(this, release.versionName)
             }
             .setNegativeButton(R.string.update_dialog_button_later, null)
-            .show()
+            .show().also { com.steamcontroller.android.ui.TvFocus.install(it) }
     }
 
     private fun downloadAndInstall(release: UpdateChecker.ReleaseInfo) {
@@ -838,7 +839,7 @@ class MainActivity : AppCompatActivity() {
                 openShizukuApp()
             }
             .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            .show().also { com.steamcontroller.android.ui.TvFocus.install(it) }
     }
 
     /**

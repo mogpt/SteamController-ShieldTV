@@ -38,6 +38,7 @@ class AppPickerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityAppPickerBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        com.steamcontroller.android.ui.TvFocus.install(this)
 
         profileId = intent.getStringExtra(EXTRA_PROFILE_ID).orEmpty()
         intent.getStringArrayListExtra(EXTRA_PRESELECTED)?.let { checkedPackages.addAll(it) }
@@ -69,7 +70,7 @@ class AppPickerActivity : AppCompatActivity() {
             )
             .setPositiveButton("Open Settings") { d, _ -> UsageStatsHelper.openSettingsScreen(this); d.dismiss() }
             .setNegativeButton("Skip", null)
-            .show()
+            .show().also { com.steamcontroller.android.ui.TvFocus.install(it) }
     }
 
     private fun loadAppsAsync() {

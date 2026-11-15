@@ -52,6 +52,7 @@ class ProfilesActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityProfilesBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        com.steamcontroller.android.ui.TvFocus.install(this)
 
         binding.toolbar.setNavigationOnClickListener { finish() }
         binding.toolbar.setOnMenuItemClickListener { item ->
@@ -154,7 +155,7 @@ class ProfilesActivity : AppCompatActivity() {
                 d.dismiss()
             }
             .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            .show().also { com.steamcontroller.android.ui.TvFocus.install(it) }
         showKeyboardFor(input)
     }
 
@@ -186,7 +187,7 @@ class ProfilesActivity : AppCompatActivity() {
                 d.dismiss()
             }
             .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            .show().also { com.steamcontroller.android.ui.TvFocus.install(it) }
         showKeyboardFor(input)
     }
 
@@ -210,7 +211,7 @@ class ProfilesActivity : AppCompatActivity() {
                 d.dismiss()
             }
             .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            .show().also { com.steamcontroller.android.ui.TvFocus.install(it) }
     }
 
     private fun applyProfile(profile: NamedProfile) {

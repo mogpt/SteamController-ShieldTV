@@ -225,6 +225,18 @@
                         android:textStyle="bold"
                         app:cornerRadius="16dp" />
 
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnAutoTuneSticks"
+                        app:icon="@drawable/ic_tune_sweep"
+                        app:iconGravity="textStart"
+                        app:iconSize="24dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/calib_autotune"
+                        android:textStyle="bold"
+                        app:cornerRadius="14dp" />
+
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"

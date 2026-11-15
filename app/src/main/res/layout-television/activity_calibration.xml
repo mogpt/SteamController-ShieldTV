@@ -475,6 +475,19 @@
                         android:textSize="13sp"
                         android:textStyle="bold"
                         app:cornerRadius="14dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnAutoTuneSticks"
+                        app:icon="@drawable/ic_tune_sweep"
+                        app:iconGravity="textStart"
+                        app:iconSize="24dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/calib_autotune"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="14dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>

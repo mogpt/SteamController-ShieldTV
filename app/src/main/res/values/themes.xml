@@ -22,6 +22,16 @@
         <item name="colorSurfaceVariant">@color/shield_surface_variant</item>
         <item name="colorOnSurfaceVariant">@color/shield_on_surface_variant</item>
         <item name="colorOutline">@color/shield_outline</item>
+        <!-- Material 3 draws dialogs, menus and sheets on these "surface container" tones,
+             not colorSurface. Left unset they fall back to the library's light defaults, and
+             every dialog came out pale lavender with light text that could not be read. -->
+        <item name="colorSurfaceContainerLowest">@color/shield_bg</item>
+        <item name="colorSurfaceContainerLow">@color/shield_surface</item>
+        <item name="colorSurfaceContainer">@color/shield_surface</item>
+        <item name="colorSurfaceContainerHigh">@color/shield_surface_variant</item>
+        <item name="colorSurfaceContainerHighest">@color/shield_surface_variant</item>
+        <item name="colorSurfaceBright">@color/shield_surface_variant</item>
+        <item name="colorSurfaceDim">@color/shield_bg</item>
         <item name="android:windowBackground">@color/shield_bg</item>
         <item name="android:statusBarColor">@color/shield_bg</item>
         <item name="android:navigationBarColor">@color/shield_bg</item>

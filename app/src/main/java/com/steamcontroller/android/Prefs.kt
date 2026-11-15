@@ -30,11 +30,13 @@ object Prefs {
     private const val KEY_L_CENTER_Y = "calib_l_cy"
     private const val KEY_L_DEADZONE = "calib_l_dz"
     private const val KEY_L_INVERT_Y = "calib_l_invy"
+    private const val KEY_L_OUTER    = "calib_l_outer"
 
     private const val KEY_R_CENTER_X = "calib_r_cx"
     private const val KEY_R_CENTER_Y = "calib_r_cy"
     private const val KEY_R_DEADZONE = "calib_r_dz"
     private const val KEY_R_INVERT_Y = "calib_r_invy"
+    private const val KEY_R_OUTER    = "calib_r_outer"
 
     private const val KEY_RUMBLE_INTENSITY = "rumble_intensity"  // 0..100
     private const val KEY_MOUSE_SENSITIVITY = "mouse_sensitivity_x10"  // 1..30 → 0.1x..3.0x
@@ -123,7 +125,8 @@ object Prefs {
             centerX = getInt(KEY_L_CENTER_X, 0),
             centerY = getInt(KEY_L_CENTER_Y, 0),
             deadzonePercent = getInt(KEY_L_DEADZONE, 8),
-            invertY = getBoolean(KEY_L_INVERT_Y, false)
+            invertY = getBoolean(KEY_L_INVERT_Y, false),
+            outerPercent = getInt(KEY_L_OUTER, 100),
         )
     }
 
@@ -133,6 +136,7 @@ object Prefs {
             .putInt(KEY_L_CENTER_Y, c.centerY)
             .putInt(KEY_L_DEADZONE, c.deadzonePercent)
             .putBoolean(KEY_L_INVERT_Y, c.invertY)
+            .putInt(KEY_L_OUTER, c.outerPercent)
             .apply()
     }
 
@@ -141,7 +145,8 @@ object Prefs {
             centerX = getInt(KEY_R_CENTER_X, 0),
             centerY = getInt(KEY_R_CENTER_Y, 0),
             deadzonePercent = getInt(KEY_R_DEADZONE, 8),
-            invertY = getBoolean(KEY_R_INVERT_Y, false)
+            invertY = getBoolean(KEY_R_INVERT_Y, false),
+            outerPercent = getInt(KEY_R_OUTER, 100),
         )
     }
 
@@ -151,6 +156,7 @@ object Prefs {
             .putInt(KEY_R_CENTER_Y, c.centerY)
             .putInt(KEY_R_DEADZONE, c.deadzonePercent)
             .putBoolean(KEY_R_INVERT_Y, c.invertY)
+            .putInt(KEY_R_OUTER, c.outerPercent)
             .apply()
     }
 
@@ -317,12 +323,16 @@ object Prefs {
             centerY = profile.leftCenterY,
             deadzonePercent = profile.leftDeadzone,
             invertY = profile.leftInvertY,
+            // Not part of a game profile: it describes the physical stick, so loading a
+            // profile keeps what Auto-tune measured.
+            outerPercent = getLeftCalibration(context).outerPercent,
         ))
         setRightCalibration(context, StickCalibration(
             centerX = profile.rightCenterX,
             centerY = profile.rightCenterY,
             deadzonePercent = profile.rightDeadzone,
             invertY = profile.rightInvertY,
+            outerPercent = getRightCalibration(context).outerPercent,
         ))
         setMouseSensitivity(context, profile.mouseSensitivity)
         setTrackpadAsMouseInGamepad(context, profile.trackpadAsMouse)
