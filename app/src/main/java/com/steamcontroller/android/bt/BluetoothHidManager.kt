@@ -5,7 +5,7 @@ import android.bluetooth.*
 import android.content.Context
 import android.util.Log
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicBoolean
+
 
 /**
  * SC2026 via Bluetooth LE — uses Valve's vendor GATT service (100f6c32-...).
@@ -116,6 +116,9 @@ class BluetoothHidManager(private val context: Context) {
         cancelSubsTimeout()
         val r = Runnable {
             if (state != State.SUBSCRIBING) return@Runnable
+            // The write was never answered, so Android still thinks it is outstanding and
+            // would refuse the retry and everything after it. Clear that first.
+            clearStackBusy(g)
             val stalled = subsIndex - 1
             if (subsRetries < MAX_SUBSCRIBE_RETRIES) {
                 subsRetries++
@@ -146,6 +149,12 @@ class BluetoothHidManager(private val context: Context) {
         val r = object : Runnable {
             override fun run() {
                 if (state != State.READY || gatt !== g) return
+                // Never issue a read on top of a queued or in-flight write: it would be
+                // refused, or refuse the write behind it. Rumble and heartbeat go first.
+                if (writeInFlight || writeQueue.isNotEmpty()) {
+                    subsHandler.postDelayed(this, 300)
+                    return
+                }
                 val ok = try { g.readCharacteristic(ch) } catch (t: Throwable) {
                     Log.w(TAG, "Battery read threw: ${t.message}"); false
                 }
@@ -166,6 +175,7 @@ class BluetoothHidManager(private val context: Context) {
                 // buys nothing and keeps poking a queue the heartbeat also needs, so give
                 // up after a few tries and drop back to the normal interval.
                 consecutiveBusyReads++
+                clearStackBusy(g)
                 if (consecutiveBusyReads == MAX_BUSY_READ_RETRIES) {
                     Log.w(TAG, "Battery read refused $consecutiveBusyReads times — " +
                         "GATT queue looks wedged; backing off to the normal interval")
@@ -191,7 +201,24 @@ class BluetoothHidManager(private val context: Context) {
     }
 
     @Volatile private var state: State = State.IDLE
-    private val heartbeatBusy = AtomicBoolean(false)
+
+    // ── Outgoing writes ──────────────────────────────────────────────────────
+    // Android's GATT client accepts one operation at a time and refuses anything issued
+    // while another is outstanding. Rumble used to fire its two motor commands back to
+    // back, so the second was always refused, and nothing checked the result. Every write
+    // now goes through this queue: one in flight, the next sent from onCharacteristicWrite.
+    // Entries are keyed so a newer command for the same target replaces an older unsent one
+    // (only the latest rumble level matters; one pending heartbeat is enough).
+    private class PendingWrite(val key: String, var payload: ByteArray, val writeType: Int)
+    private val writeQueue = ArrayDeque<PendingWrite>()
+    private var writeInFlight = false
+    private var writeIssuedAt = 0L
+    private var consecutiveRefusals = 0
+    private var pumpScheduled = false
+    /** No callback for this long means the write was lost; stop waiting for it. */
+    private val WRITE_STUCK_MS = 1500L
+    private val WRITE_RETRY_MS = 40L
+    private var unwedgeLogged = false
 
     private var onReport: ((ByteArray) -> Unit)? = null
     private var onConnectionChange: ((Boolean) -> Unit)? = null
@@ -317,18 +344,92 @@ class BluetoothHidManager(private val context: Context) {
      */
     fun sendRumble(strong: Int, weak: Int) {
         if (state != State.READY) return
-        val ch = featureWriteChar ?: return
-        val g = gatt ?: return
+        // Left then right, through the write queue — see PendingWrite.
+        enqueueWrite("rumble0", magnitudeToPayload(0, strong), BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
+        enqueueWrite("rumble1", magnitudeToPayload(1, weak), BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
+    }
 
-        // Send left then right. WRITE_NO_RESPONSE so they don't queue up acks.
-        for (payload in listOf(magnitudeToPayload(0, strong), magnitudeToPayload(1, weak))) {
-            try {
-                ch.value = payload
-                ch.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-                g.writeCharacteristic(ch)
-            } catch (t: Throwable) {
-                Log.w(TAG, "rumble write failed: ${t.message}")
+    private fun enqueueWrite(key: String, payload: ByteArray, writeType: Int) {
+        subsHandler.post {
+            if (state != State.READY) return@post
+            val existing = writeQueue.firstOrNull { it.key == key }
+            if (existing != null) existing.payload = payload
+            else writeQueue.addLast(PendingWrite(key, payload, writeType))
+            pumpWrites()
+        }
+    }
+
+    /** Send the next queued write if nothing is in flight. Main looper only. */
+    private fun pumpWrites() {
+        val g = gatt
+        val ch = featureWriteChar
+        if (state != State.READY || g == null || ch == null) {
+            writeQueue.clear(); writeInFlight = false
+            return
+        }
+        val now = android.os.SystemClock.uptimeMillis()
+        if (writeInFlight) {
+            if (now - writeIssuedAt < WRITE_STUCK_MS) return
+            Log.w(TAG, "Write got no callback in ${WRITE_STUCK_MS}ms — treating it as lost")
+            writeInFlight = false
+            clearStackBusy(g)
+        }
+        val next = writeQueue.firstOrNull() ?: return
+        val ok = try {
+            ch.value = next.payload
+            ch.writeType = next.writeType
+            g.writeCharacteristic(ch)
+        } catch (t: Throwable) {
+            Log.w(TAG, "write ${next.key} threw: ${t.message}"); false
+        }
+        if (ok) {
+            writeQueue.removeFirst()
+            writeInFlight = true
+            writeIssuedAt = now
+            if (consecutiveRefusals > 0) Log.i(TAG, "Writes accepted again after $consecutiveRefusals refusals")
+            consecutiveRefusals = 0
+            schedulePump(WRITE_STUCK_MS + 50)
+        } else {
+            // Refused: the stack believes an operation is still outstanding. After a couple
+            // of refusals, clear that belief (it is stale on this hardware — see
+            // clearStackBusy) and try again shortly.
+            consecutiveRefusals++
+            if (consecutiveRefusals == 3 || consecutiveRefusals % 50 == 0) {
+                Log.w(TAG, "Write ${next.key} refused $consecutiveRefusals times")
+                clearStackBusy(g)
             }
+            schedulePump(if (consecutiveRefusals < 50) WRITE_RETRY_MS else 500L)
+        }
+    }
+
+    private fun schedulePump(delayMs: Long) {
+        if (pumpScheduled) return
+        pumpScheduled = true
+        subsHandler.postDelayed({ pumpScheduled = false; pumpWrites() }, delayMs)
+    }
+
+    /**
+     * Clear Android's "an operation is outstanding" flag on this connection.
+     *
+     * On the SC2026 the first notification-setup write is accepted and never answered.
+     * Android's BluetoothGatt keeps a private busy flag set until an answer arrives, so
+     * from then on it refuses every write and read for the life of the connection —
+     * rumble, the lizard-mode heartbeat and battery reads all failed silently. The flag is
+     * the only thing in the way: the controller itself keeps accepting commands. There is
+     * no public API to clear it, so this resets it by reflection. (The framework's lock
+     * around it is off limits to apps targeting API 35; it is only called when no
+     * operation is genuinely outstanding, so going without it is safe.) Returns false if
+     * this Android build does not allow it.
+     */
+    private fun clearStackBusy(g: BluetoothGatt): Boolean {
+        return try {
+            val busy = BluetoothGatt::class.java.getDeclaredField("mDeviceBusy").apply { isAccessible = true }
+            busy.set(g, false)
+            if (!unwedgeLogged) { Log.i(TAG, "Cleared stale GATT busy flag"); unwedgeLogged = true }
+            true
+        } catch (t: Throwable) {
+            if (!unwedgeLogged) { Log.w(TAG, "Cannot clear GATT busy flag: $t"); unwedgeLogged = true }
+            false
         }
     }
 
@@ -386,21 +487,8 @@ class BluetoothHidManager(private val context: Context) {
 
     fun sendHeartbeat() {
         if (state != State.READY) return
-        val g = gatt ?: return
-        val ch = featureWriteChar ?: return
-        if (!heartbeatBusy.compareAndSet(false, true)) return  // previous heartbeat not yet acked
-        try {
-            ch.value = DISABLE_LIZARD
-            ch.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-            val ok = g.writeCharacteristic(ch)
-            if (!ok) {
-                heartbeatBusy.set(false)
-                Log.v(TAG, "heartbeat skipped: writeCharacteristic returned false")
-            }
-        } catch (t: Throwable) {
-            heartbeatBusy.set(false)
-            Log.w(TAG, "heartbeat write failed: ${t.message}")
-        }
+        // Keyed, so a heartbeat still waiting behind rumble writes is not duplicated.
+        enqueueWrite("heartbeat", DISABLE_LIZARD, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
     }
 
     private val gattCallback = object : BluetoothGattCallback() {
@@ -516,8 +604,11 @@ class BluetoothHidManager(private val context: Context) {
             ch: BluetoothGattCharacteristic,
             status: Int
         ) {
-            heartbeatBusy.set(false)
             if (status != 0) Log.w(TAG, "Write ${ch.uuid} failed: status=$status")
+            subsHandler.post {
+                writeInFlight = false
+                pumpWrites()
+            }
         }
 
         // Deprecated 3-arg overload (not the API 33+ byte[]-carrying one) — minSdk 26 means
@@ -609,10 +700,11 @@ class BluetoothHidManager(private val context: Context) {
                 startBatteryPolling(g)
                 return
             }
-            ch.value = DISABLE_LIZARD
-            ch.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-            val ok = g.writeCharacteristic(ch)
-            Log.i(TAG, "Disable lizard write: $ok")
+            writeQueue.clear()
+            writeInFlight = false
+            consecutiveRefusals = 0
+            enqueueWrite("heartbeat", DISABLE_LIZARD, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+            Log.i(TAG, "Disable lizard write queued")
             startBatteryPolling(g)
             return
         }
