@@ -119,6 +119,9 @@ class ControllerService : Service() {
     // double presses show up.
     private val DEBOUNCE_MS = 0L
 
+    /** 150 ms apart, so ~15 s — see chooseInjectionMode. */
+    private val UINPUT_READY_ATTEMPTS = 100
+
     // Display-only flow throttle — see onHidFrame.
     private val UI_FLOW_INTERVAL_MS = 33L
     private var lastUiEmitMs = 0L
@@ -564,7 +567,12 @@ class ControllerService : Service() {
         // 1. Try uinput via Shizuku UserService
         try {
             uinput.bind()
-            for (attempt in 0 until 20) {
+            // Generous on purpose. The helper is a cold process start through Shizuku and
+            // may first have to reap a stale predecessor; on the SHIELD that has been seen
+            // to take 3.01 s. The old 3 s limit lost that race by 10 ms and dropped to the
+            // inject fallback for the whole session — which games filter and which misses
+            // presses. Waiting longer costs nothing when the helper is quick.
+            for (attempt in 0 until UINPUT_READY_ATTEMPTS) {
                 if (uinput.isReady) break
                 delay(150)
             }
